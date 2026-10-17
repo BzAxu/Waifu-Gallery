@@ -33,6 +33,31 @@ const PROVIDERS = [
     url: "https://api.waifu.im/images?IsNsfw=False&PageSize=10",
     headers: { "Accept": "application/json" },
     parse: (data) => Array.isArray(data.items) ? data.items.map((item) => item.url) : []
+  },
+  {
+    id: "waifupics-waifu",
+    name: "Waifu.pics · Waifu",
+    kind: "SFW 随机动漫图",
+    url: "https://api.waifu.pics/sfw/waifu",
+    headers: { "Accept": "application/json" },
+    parse: (data) => data && typeof data.url === "string" ? [data.url] : []
+  },
+  {
+    id: "waifupics-neko",
+    name: "Waifu.pics · Neko",
+    kind: "SFW 猫耳角色图",
+    url: "https://api.waifu.pics/sfw/neko",
+    headers: { "Accept": "application/json" },
+    parse: (data) => data && typeof data.url === "string" ? [data.url] : []
+  },
+  {
+    id: "safebooru",
+    name: "Safebooru",
+    kind: "rating:safe 动漫插画",
+    url: "https://safebooru.donmai.us/posts.json?tags=rating%3Asafe&limit=20&order=random",
+    headers: { "Accept": "application/json", "User-Agent": "Waifu-Gallery/1.0 (public safe image gallery)" },
+    batchSize: 20,
+    parse: (data) => Array.isArray(data) ? data.map((item) => item.large_file_url || item.file_url || item.preview_file_url).filter(Boolean) : []
   }
 ];
 
