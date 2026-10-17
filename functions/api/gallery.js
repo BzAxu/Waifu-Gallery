@@ -117,34 +117,67 @@ export async function onRequestGet({ request }) {
       return json({ error: "无效的图片地址" }, 400);
     }
     const isPublicHttps = (candidate) => {
-      const hostname = candidate.hostname.toLowerCase();
-      const isIpLiteral = /^\\d{1,3}(\\.\\d{1,3}){3}$/.test(hostname) || hostname.includes(":");
+      const hostname = candidate.hostname.toLowerCase().replace(/\.$/, "");
+      // Reject IP literals entirely; image sources should provide public hostnames.
+      const isIpv4 = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
+      const isIpv6 = hostname.startsWith("[") || hostname.includes(":");
+      const blockedSuffixes = [
+        "localhost", "local", "internal", "test", "invalid", "example",
+        "home", "lan", "localdomain"
+      ];
       return candidate.protocol === "https:" &&
         !candidate.username && !candidate.password &&
-        !isIpLiteral && hostname.includes(".") &&
-        !["localhost", "local", "internal"].some((part) => hostname === part || hostname.endsWith("." + part)) &&
+        !isIpv4 && !isIpv6 &&
+        hostname.includes(".") &&
+        !blockedSuffixes.some((part) => hostname === part || hostname.endsWith("." + part)) &&
         ["443", ""].includes(candidate.port);
     };
     if (!isPublicHttps(imageUrl)) return json({ error: "仅支持公开 HTTPS 图片地址" }, 400);
     try {
+      // Validate each redirect target before issuing the next request.
+      let target = imageUrl;
+      let imageResponse;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-      let imageResponse;
       try {
-        imageResponse = await fetch(imageUrl.href, {
-          headers: { "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8" },
-          signal: controller.signal,
-          redirect: "follow"
-        });
+        for (let redirects = 0; redirects <= 4; redirects++) {
+          imageResponse = await fetch(target.href, {
+            headers: { "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8" },
+            signal: controller.signal,
+            redirect: "manual"
+          });
+          if (![301, 302, 303, 307, 308].includes(imageResponse.status)) break;
+          const location = imageResponse.headers.get("location");
+          if (!location || redirects === 4) {
+            if (imageResponse.body) imageResponse.body.cancel().catch(() => {});
+            return json({ error: "图片重定向次数过多或地址无效" }, 502);
+          }
+          const nextTarget = new URL(location, target);
+          if (!isPublicHttps(nextTarget)) {
+            if (imageResponse.body) imageResponse.body.cancel().catch(() => {});
+            return json({ error: "图片重定向地址不受支持" }, 400);
+          }
+          if (imageResponse.body) imageResponse.body.cancel().catch(() => {});
+          target = nextTarget;
+        }
       } finally {
         clearTimeout(timer);
       }
-      const finalUrl = new URL(imageResponse.url);
-      if (!isPublicHttps(finalUrl)) return json({ error: "图片重定向地址不受支持" }, 400);
-      if (!imageResponse.ok) return json({ error: "图片服务器返回 HTTP " + imageResponse.status }, 502);
+      if (!imageResponse || !imageResponse.ok) {
+        const statusCode = imageResponse ? imageResponse.status : 502;
+        if (imageResponse && imageResponse.body) imageResponse.body.cancel().catch(() => {});
+        return json({ error: "图片服务器返回 HTTP " + statusCode }, 502);
+      }
       const contentType = imageResponse.headers.get("content-type") || "application/octet-stream";
       if (!contentType.toLowerCase().startsWith("image/")) {
+        if (imageResponse.body) imageResponse.body.cancel().catch(() => {});
         return json({ error: "目标地址没有返回图片文件" }, 415);
+      }
+      const maxBytes = 20 * 1024 * 1024;
+      const declaredLength = Number(imageResponse.headers.get("content-length"));
+      if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+        if (imageResponse.body) imageResponse.body.cancel().catch(() => {});
+        return json({ error: "图片文件超过 20 MB 限制" }, 413);
       }
       const extension = contentType.toLowerCase().includes("png") ? "png" :
         contentType.toLowerCase().includes("webp") ? "webp" :
@@ -156,14 +189,29 @@ export async function onRequestGet({ request }) {
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff"
       });
-      return new Response(imageResponse.body, { status: 200, headers });
+      // Enforce the size cap while streaming, including responses without Content-Length.
+      let streamedBytes = 0;
+      const limitedBody = imageResponse.body
+        ? imageResponse.body.pipeThrough(new TransformStream({
+            transform(chunk, controller) {
+              streamedBytes += chunk.byteLength;
+              if (streamedBytes > maxBytes) {
+                controller.error(new Error("图片文件超过 20 MB 限制"));
+                return;
+              }
+              controller.enqueue(chunk);
+            }
+          }))
+        : null;
+      return new Response(limitedBody, { status: 200, headers });
     } catch (error) {
       return json({ error: error && error.name === "AbortError" ? "下载图片超时" : "图片服务器暂时无法下载" }, 502);
     }
   }
 
   if (mode === "status") {
-    const results = await Promise.all(PROVIDERS.map(requestProvider));
+    const activeProviders = PROVIDERS.filter((provider) => !provider.retired);
+    const results = await Promise.all(activeProviders.map(requestProvider));
     return json({
       providers: results.map(({ provider, name, ok, latency, error }) => ({
         id: provider, name, ok, latency, error: error || null
