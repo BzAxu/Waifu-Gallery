@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#10121b">
+<meta name="description" content="一个二次元图片聚合画廊，汇集多个公开图片源，浏览、预览和下载喜欢的插画。">
+<title>Waifu Gallery · 二次元图片画廊</title>
+<link rel="stylesheet" href="./assets/css/styles.css">
+</head>
+<body class="gallery-view-active">
+<main id="top" hidden></main>
+<main class="gallery-page" id="galleryPage" hidden>
+    <section class="panel gallery-hero">
+      <div class="gallery-hero-bar">
+        <a class="gallery-back" href="/" aria-label="Waifu Gallery"><span aria-hidden="true">✧</span><span class="gallery-back-label">Waifu Gallery</span></a>
+        <h1>画廊浏览</h1>
+        <button class="button gallery-menu-trigger" id="galleryMenuOpen" type="button" aria-haspopup="dialog" aria-controls="gallerySettingsDialog" aria-label="画廊设置" title="画廊设置">
+          <svg class="gallery-menu-gear" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"/><path d="M19.4 13.5a7.8 7.8 0 0 0 0-3l1.1-.85-1.5-2.6-1.32.5a7.8 7.8 0 0 0-2.6-1.5L14.8 4.7h-3l-.3 1.35a7.8 7.8 0 0 0-2.6 1.5l-1.32-.5-1.5 2.6 1.1.85a7.8 7.8 0 0 0 0 3l-1.1.85 1.5 2.6 1.32-.5a7.8 7.8 0 0 0 2.6 1.5l.3 1.35h3l.3-1.35a7.8 7.8 0 0 0 2.6-1.5l1.32.5 1.5-2.6-1.1-.85Z"/></svg>
+        </button>
+      </div>
+    </section>
+    <section class="gallery-grid" id="galleryGrid" aria-label="二次元图片画廊"></section>
+    <div class="gallery-empty" id="galleryEmpty" hidden>
+      <div class="gallery-empty-icon">✧</div>
+      <h2 id="galleryEmptyTitle">正在连接图片接口</h2>
+      <p id="galleryEmptyText">如果加载失败，可以稍后重试；部分网络可能无法访问第三方图片服务。</p>
+      <button class="button" type="button" id="galleryRetry">重新加载</button>
+    </div>
+    <div class="gallery-bottom">
+      <button class="button gallery-more" id="galleryMore" type="button">再看一些 <span aria-hidden="true">↓</span></button>
+    </div>
+  </main>
+<footer hidden><div class="foot-line"></div>Waifu Gallery · 二次元图片聚合画廊</footer>
+<section class="gallery-settings-dialog" id="gallerySettingsDialog" role="dialog" aria-modal="true" aria-labelledby="gallerySettingsTitle" hidden>
+    <button class="gallery-settings-backdrop" type="button" data-gallery-settings-close aria-label="关闭画廊设置"></button>
+    <div class="gallery-settings-card">
+      <button class="gallery-settings-close" type="button" data-gallery-settings-close aria-label="关闭">×</button>
+      <div class="gallery-settings-eyebrow">GALLERY / SETTINGS</div>
+      <h2 id="gallerySettingsTitle">画廊设置</h2>
+      <p class="gallery-settings-description">管理图片来源、刷新图片，并查看各服务的连接状态。</p>
+      <div class="gallery-settings-section gallery-columns-setting">
+        <label class="gallery-source-label" for="galleryColumnsSelect">缩略图列数
+          <select class="gallery-source-select" id="galleryColumnsSelect">
+            <option value="auto">自动适配</option>
+            <option value="2">2 列</option>
+            <option value="3">3 列</option>
+            <option value="4">4 列</option>
+            <option value="5">5 列</option>
+          </select>
+        </label>
+        <span class="gallery-status">图片按原始长宽比完整显示，不再裁切。</span>
+      </div>
+      <div class="gallery-settings-section">
+        <label class="gallery-source-label" for="gallerySourceSelect">图片源
+          <select class="gallery-source-select" id="gallerySourceSelect">
+            <option value="auto">自动选择 / 故障切换</option>
+            <option value="nekosapi">Nekos API</option>
+            <option value="nekosbest">NEKOS.BEST</option>
+            <option value="icatw">Anime Image Gateway</option>
+          </select>
+        </label>
+        <button class="button gallery-refresh" id="galleryRefresh" type="button">↻ 刷新</button>
+        <span class="gallery-status" id="galleryStatus" role="status" aria-live="polite">正在检测图片源…</span>
+      </div>
+      <details class="gallery-provider-panel">
+        <summary class="gallery-provider-summary">
+          <span class="gallery-provider-summary-title"><span class="gallery-provider-summary-dot" aria-hidden="true"></span><span><strong>图片源状态</strong><small id="galleryProviderStatusSummary" role="status" aria-live="polite">等待检测…</small></span></span>
+          <span class="gallery-provider-summary-actions"><span class="gallery-provider-summary-hint">延迟 / 在线状态</span><span class="gallery-provider-chevron" aria-hidden="true">⌄</span></span>
+        </summary>
+        <div class="gallery-provider-details">
+          <div class="gallery-provider-heading">
+            <strong>各图片源检测结果</strong>
+            <button class="button gallery-provider-refresh" id="galleryProviderStatusRefresh" type="button">重新检测</button>
+          </div>
+          <div class="gallery-provider-list" id="galleryProviderStatusList"></div>
+          <p class="gallery-provider-note">延迟是本站服务器到图片 API 的响应时间，不代表图片文件本身的加载速度。</p>
+        </div>
+      </details>
+    </div>
+  </section>
+<section class="gallery-lightbox" id="galleryLightbox" role="dialog" aria-modal="true" aria-label="图片预览" hidden>
+    <button class="gallery-lightbox-backdrop" type="button" data-gallery-close aria-label="关闭图片预览"></button>
+    <div class="gallery-lightbox-card">
+      <button class="gallery-lightbox-close" type="button" data-gallery-close aria-label="关闭">×</button>
+      <img id="galleryLightboxImage" alt="二次元插画大图">
+      <div class="gallery-lightbox-caption"><span id="galleryLightboxTitle">PIXIV ARTWORK</span> <span>·</span> <a id="galleryPixivLink" href="https://www.pixiv.net/" target="_blank" rel="noopener noreferrer">在 Pixiv 查看 ↗</a></div>
+    </div>
+  </section>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="./assets/js/gallery.js"></script>
+</body>
+</html>
