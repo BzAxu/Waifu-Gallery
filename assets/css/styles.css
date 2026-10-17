@@ -1123,3 +1123,15 @@ body.gallery-view-active .top-nav a { padding:7px 9px; font-size:12px; }
     will-change: auto;
   }
 }
+
+
+/* Keep the close glyph optically centered in the image preview button. */
+.gallery-lightbox-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
