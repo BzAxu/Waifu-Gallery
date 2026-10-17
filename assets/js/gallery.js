@@ -449,8 +449,14 @@
     document.body.classList.remove("gallery-open");
     if (lightboxTrigger) lightboxTrigger.focus();
     lightboxTrigger = null;
-    // When the user taps the close button, remove the preview's history entry too.
-    if (!fromHistory && history.state && history.state.galleryLightbox) history.back();
+    // Closing the preview should not navigate away from the gallery.
+    // Clear the modal marker in-place instead of calling history.back(), which
+    // could resolve to the empty home view on a direct gallery visit.
+    if (!fromHistory && history.state && history.state.galleryLightbox) {
+      const nextState = { ...history.state };
+      delete nextState.galleryLightbox;
+      history.replaceState(nextState, "", window.location.href);
+    }
   }
   lightbox.querySelectorAll("[data-gallery-close]").forEach((button) => button.addEventListener("click", () => closeLightbox()));
   document.addEventListener("keydown", (event) => {
