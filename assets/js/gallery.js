@@ -336,8 +336,8 @@
   settingsOpen?.addEventListener("click", openSidebar);
   sidebarCloseButton?.addEventListener("click", () => closeSidebar());
   sidebarBackdrop?.addEventListener("click", () => closeSidebar());
-  sidebarTagsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); openTagDialog(); });
-  sidebarSettingsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); openSettings(); });
+  sidebarTagsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); settingsOpen?.focus({ preventScroll: true }); openTagDialog(); });
+  sidebarSettingsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); settingsOpen?.focus({ preventScroll: true }); openSettings(); });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && sidebar && !sidebarBackdrop?.hidden) closeSidebar();
   });
