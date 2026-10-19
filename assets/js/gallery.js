@@ -318,7 +318,10 @@
     }
     const isGalleryEntry = (history.state && history.state.view === "gallery") ||
       new URL(window.location.href).searchParams.get("page") === "gallery";
-    renderRoute(isGalleryEntry ? "gallery" : "home");
+    const nextRoute = isGalleryEntry ? "gallery" : "home";
+    // Closing a history-backed preview returns to the same gallery entry. Do not
+    // call renderRoute in that case, because it would jump the page back to top.
+    if (nextRoute !== currentRoute) renderRoute(nextRoute);
   });
 
   function setLoading(value) {
@@ -730,6 +733,8 @@
   }
 
   const initialRoute = "gallery";
-  history.replaceState({ ...(history.state || {}), view: "gallery" }, "", window.location.href);
+  const initialHistoryState = { ...(history.state || {}), view: "gallery" };
+  delete initialHistoryState.galleryLightbox;
+  history.replaceState(initialHistoryState, "", window.location.href);
   renderRoute(initialRoute);
 })();
