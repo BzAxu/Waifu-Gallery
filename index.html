@@ -59,9 +59,14 @@
             <option value="icatw">Anime Image Gateway</option>
             <option value="waifupics-waifu">Waifu.pics · Waifu</option>
             <option value="waifupics-neko">Waifu.pics · Neko</option>
-            <option value="safebooru">Safebooru</option>
+            <option value="safebooru">Danbooru（G 级）</option>
           </select>
         </label>
+        <label class="gallery-tag-label" for="galleryTagInput">标签筛选
+          <input class="gallery-tag-input" id="galleryTagInput" type="text" maxlength="320" placeholder="例如 brown_hair, school_uniform" autocomplete="off" spellcheck="false">
+        </label>
+        <button class="button gallery-tag-apply" id="galleryTagApply" type="button">应用标签</button>
+        <span class="gallery-tag-hint" id="galleryTagHint">自动模式仅查询支持标签的接口；多个标签用逗号分隔。</span>
         <button class="button gallery-refresh" id="galleryRefresh" type="button">↻ 刷新</button>
         <span class="gallery-status" id="galleryStatus" role="status" aria-live="polite">正在检测图片源…</span>
       </div>
