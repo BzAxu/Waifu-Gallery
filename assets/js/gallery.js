@@ -201,6 +201,9 @@
 
   const seen = new Set();
   let loading = false;
+  let lastBatchAdded = 1;
+  let autoLoadArmed = true;
+  let scrollObserver = null;
   let currentRoute = "home";
   let lightboxTrigger = null;
   let currentSourceName = "图片源";
@@ -328,6 +331,7 @@
 
   async function loadImages({ reset = false } = {}) {
     if (loading) return;
+    let added = 0;
     if (reset) {
       grid.replaceChildren();
       loadingGrid.replaceChildren();
@@ -336,7 +340,7 @@
     setLoading(true);
     try {
       const source = sourceSelect ? sourceSelect.value : "auto";
-      const response = await fetch("/api/gallery?source=" + encodeURIComponent(source), {
+      const response = await fetch("/api/gallery?source=" + encodeURIComponent(source) + "&count=100", {
         method: "GET",
         headers: { "Accept": "application/json" },
         cache: "no-store"
@@ -344,7 +348,6 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || ("图片服务返回 HTTP " + response.status));
       if (!Array.isArray(data.files)) throw new Error("图片服务返回的数据格式不正确");
-      let added = 0;
       currentSourceName = data.sourceName || "自动切换";
       data.files.forEach((url) => { if (addImage(url, currentSourceName)) added++; });
       if (!grid.children.length && !loadingGrid.children.length) throw new Error("暂时没有获取到图片，请稍后重试");
@@ -364,7 +367,15 @@
       status.textContent = grid.children.length || loadingGrid.children.length ? "部分图片加载失败，可重试" : "图片服务连接失败";
       if (providerStatusSummary) providerStatusSummary.textContent = "当前请求失败；可查看各源状态，或切换到自动模式。";
     } finally {
+      lastBatchAdded = added;
       setLoading(false);
+      // Re-evaluate the sentinel after a batch so short pages can fill the viewport,
+      // while the no-new-images guard prevents endless automatic retries.
+      if (scrollObserver && moreButton) {
+        autoLoadArmed = true;
+        scrollObserver.unobserve(moreButton);
+        scrollObserver.observe(moreButton);
+      }
     }
   }
 
@@ -483,6 +494,36 @@
   if (providerStatusRefresh) providerStatusRefresh.addEventListener("click", checkProviderStatus);
   retryButton.addEventListener("click", () => loadImages({ reset: grid.children.length === 0 }));
   moreButton.addEventListener("click", () => loadImages());
+
+  // Infinite scroll: prefetch the next batch before the user reaches the bottom.
+  // Re-arm only after the sentinel leaves the prefetch area; never spin on empty batches.
+  if ("IntersectionObserver" in window && moreButton) {
+    scrollObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) {
+          autoLoadArmed = true;
+          continue;
+        }
+        if (autoLoadArmed && !loading && currentRoute === "gallery" && lastBatchAdded > 0) {
+          autoLoadArmed = false;
+          loadImages();
+        }
+      }
+    }, { root: null, rootMargin: "700px 0px", threshold: 0 });
+    scrollObserver.observe(moreButton);
+  } else {
+    // Fallback for older browsers without IntersectionObserver.
+    let scrollCheckPending = false;
+    window.addEventListener("scroll", () => {
+      if (scrollCheckPending || loading || currentRoute !== "gallery" || lastBatchAdded <= 0) return;
+      scrollCheckPending = true;
+      requestAnimationFrame(() => {
+        scrollCheckPending = false;
+        const rect = moreButton.getBoundingClientRect();
+        if (rect.top < window.innerHeight + 700) loadImages();
+      });
+    }, { passive: true });
+  }
 
   const initialRoute = "gallery";
   renderRoute(initialRoute, { replace: true });
