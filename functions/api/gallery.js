@@ -2,11 +2,17 @@ const PROVIDERS = [
   {
     id: "nekosapi",
     name: "Nekos API",
-    kind: "开源动漫图 · safe 筛选",
-    url: "https://api.nekosapi.com/v4/images/random/file?rating=safe",
-    headers: { "Accept": "image/*" },
-    directImage: true,
-    parse: () => []
+    kind: "SFW 图片 · 标签筛选",
+    url: "https://api.nekosapi.com/v4/images/random?limit=10&rating=safe",
+    headers: { "Accept": "application/json" },
+    batchSize: 10,
+    supportsTags: true,
+    buildUrl: (tags) => {
+      const target = new URL("https://api.nekosapi.com/v4/images/random?limit=10&rating=safe");
+      tags.forEach((tag) => target.searchParams.append("tags", tag));
+      return target.toString();
+    },
+    parse: (data) => Array.isArray(data) ? data.map((item) => item.url) : []
   },
   {
     id: "nekosbest",
@@ -52,11 +58,19 @@ const PROVIDERS = [
   },
   {
     id: "safebooru",
-    name: "Safebooru",
-    kind: "rating:safe 动漫插画",
-    url: "https://safebooru.donmai.us/posts.json?tags=rating%3Asafe&limit=20&order=random",
+    name: "Danbooru",
+    kind: "G 级图片 · 标签筛选",
+    url: "https://safebooru.donmai.us/posts.json?tags=rating%3Ag&limit=20&order=random",
     headers: { "Accept": "application/json", "User-Agent": "Waifu-Gallery/1.0 (public safe image gallery)" },
     batchSize: 20,
+    supportsTags: true,
+    buildUrl: (tags) => {
+      const target = new URL("https://safebooru.donmai.us/posts.json");
+      target.searchParams.set("tags", ["rating:g", ...tags].join(" "));
+      target.searchParams.set("limit", "20");
+      target.searchParams.set("order", "random");
+      return target.toString();
+    },
     parse: (data) => Array.isArray(data) ? data.map((item) => item.large_file_url || item.file_url || item.preview_file_url).filter(Boolean) : []
   }
 ];
@@ -68,12 +82,13 @@ function json(body, status = 200) {
   return Response.json(body, { status, headers: CACHE_HEADERS });
 }
 
-async function requestProvider(provider) {
+async function requestProvider(provider, tags = []) {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const response = await fetch(provider.url, {
+    const requestUrl = provider.buildUrl ? provider.buildUrl(tags) : provider.url;
+    const response = await fetch(requestUrl, {
       method: "GET",
       headers: provider.headers,
       signal: controller.signal
@@ -109,7 +124,7 @@ async function requestProvider(provider) {
   }
 }
 
-async function collectProviderImages(provider, count) {
+async function collectProviderImages(provider, count, tags = []) {
   const results = [];
   const maxRequests = Math.min(count, provider.batchSize ? 100 : 20);
   // Request in small parallel groups to avoid overwhelming public APIs.
@@ -117,7 +132,7 @@ async function collectProviderImages(provider, count) {
   const callsNeeded = Math.ceil(maxRequests / perCall);
   for (let offset = 0; offset < callsNeeded && results.length < maxRequests; offset += 5) {
     const groupSize = Math.min(5, callsNeeded - offset);
-    const group = await Promise.all(Array.from({ length: groupSize }, () => requestProvider(provider)));
+    const group = await Promise.all(Array.from({ length: groupSize }, () => requestProvider(provider, tags)));
     for (const result of group) {
       if (result.ok && Array.isArray(result.files)) results.push(...result.files);
     }
@@ -132,6 +147,11 @@ export async function onRequestGet({ request }) {
   const selected = url.searchParams.get("source") || "auto";
   const requestedCount = Number.parseInt(url.searchParams.get("count") || "100", 10);
   const count = Number.isFinite(requestedCount) ? Math.max(1, Math.min(100, requestedCount)) : 100;
+  const rawTags = url.searchParams.getAll("tags").join(",");
+  const tags = [...new Set(rawTags.split(/[\s,]+/).map((tag) => tag.trim()).filter(Boolean))];
+  if (tags.length > 5 || tags.some((tag) => !/^[a-zA-Z0-9_-]{1,64}$/.test(tag))) {
+    return json({ error: "标签格式无效：每次最多 5 个标签，只能使用字母、数字、下划线或连字符。" }, 400);
+  }
 
   if (mode === "download") {
     const rawImageUrl = url.searchParams.get("url");
@@ -246,16 +266,21 @@ export async function onRequestGet({ request }) {
   }
 
   const activeProviders = PROVIDERS.filter((provider) => !provider.retired);
+  const selectedProvider = activeProviders.find((provider) => provider.id === selected);
+  if (tags.length && selected !== "auto" && (!selectedProvider || !selectedProvider.supportsTags)) {
+    return json({ error: "当前图片源不支持标签筛选。请选择自动模式、Nekos API 或 Danbooru。" }, 400);
+  }
   const candidates = selected === "auto"
-    ? [...activeProviders].sort((a, b) => (b.batchSize || 0) - (a.batchSize || 0))
+    ? [...activeProviders].filter((provider) => !tags.length || provider.supportsTags)
+        .sort((a, b) => (b.batchSize || 0) - (a.batchSize || 0))
     : activeProviders.filter((provider) => provider.id === selected);
 
-  if (!candidates.length) return json({ error: "未知的图片源" }, 400);
+  if (!candidates.length) return json({ error: "没有支持当前标签筛选的图片源。" }, 400);
 
   const failures = [];
   for (const provider of candidates) {
     const started = Date.now();
-    const files = await collectProviderImages(provider, count);
+    const files = await collectProviderImages(provider, count, tags);
     if (files.length) {
       return json({
         files,
