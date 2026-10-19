@@ -231,6 +231,13 @@
         if (otherTrigger) otherTrigger.setAttribute("aria-expanded", "false");
       });
       if (opening) {
+        const rect = trigger.getBoundingClientRect();
+        const availableBelow = window.innerHeight - rect.bottom;
+        const availableAbove = rect.top;
+        const expectedMenuHeight = Math.min(options.length * 43 + 16, window.innerHeight * 0.46, 320);
+        wrapper.classList.toggle("opens-up",
+          availableBelow < expectedMenuHeight + 24 && availableAbove > availableBelow
+        );
         menu.hidden = false;
         wrapper.classList.add("is-open");
         trigger.setAttribute("aria-expanded", "true");
@@ -1107,8 +1114,11 @@
       }
     } else {
       emptyTag?.remove();
+      const existingTags = new Set(
+        [...tagSelected.querySelectorAll(".gallery-tag-selected-chip")].map((chip) => chip.dataset.tag)
+      );
       selectedTags.forEach((tag) => {
-        if (tagSelected.querySelector('[data-tag="' + CSS.escape(tag) + '"].gallery-tag-selected-chip')) return;
+        if (existingTags.has(tag)) return;
         const chip = document.createElement("span");
         chip.className = "gallery-tag-selected-chip";
         chip.dataset.tag = tag;
