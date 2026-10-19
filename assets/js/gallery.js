@@ -192,6 +192,9 @@
       if (columnsSelect) columnsSelect.value = "auto";
       setGalleryLaneCount("auto");
       try { localStorage.removeItem(columnsStorageKey); } catch (_) {}
+      // A layout change can move the load-more sentinel into the viewport.
+      // Recheck after layout settles so the first screen doesn't remain sparse.
+      requestAnimationFrame(() => checkAutoLoad());
       return;
     }
     grid.style.setProperty("--gallery-columns", value);
@@ -199,6 +202,7 @@
     if (columnsSelect) columnsSelect.value = value;
     setGalleryLaneCount(value);
     try { localStorage.setItem(columnsStorageKey, value); } catch (_) {}
+    requestAnimationFrame(() => checkAutoLoad());
   }
   if (columnsSelect) {
     let savedColumns = "auto";
