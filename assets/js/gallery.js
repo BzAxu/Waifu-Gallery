@@ -271,10 +271,11 @@
       }
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
-        if (menu.hidden) trigger.click();
+        const wasClosed = menu.hidden;
+        if (wasClosed) trigger.click();
         if (!options.length) return;
         const selectedIndex = options.findIndex(({ option }) => option.value === select.value);
-        const targetIndex = event.key === "ArrowUp" && menu.hidden
+        const targetIndex = event.key === "ArrowUp" && wasClosed
           ? options.length - 1
           : Math.max(0, selectedIndex);
         options[targetIndex]?.item.focus();
