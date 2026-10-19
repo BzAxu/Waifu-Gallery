@@ -37,6 +37,10 @@
     return grid.querySelectorAll(".gallery-item").length;
   }
 
+  function pendingImageCount() {
+    return loadingGrid.querySelectorAll(".gallery-item").length;
+  }
+
   function setGalleryLaneCount(value) {
     const count = ["2", "3", "4", "5"].includes(value)
       ? Number(value)
@@ -304,6 +308,17 @@
 
   function setLoading(value) {
     loading = value;
+    if (value) {
+      loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+      for (let i = 0; i < 24; i++) {
+        const skeleton = document.createElement("div");
+        skeleton.className = "gallery-skeleton-placeholder";
+        skeleton.setAttribute("aria-hidden", "true");
+        loadingGrid.append(skeleton);
+      }
+    } else {
+      loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+    }
     refreshButton.disabled = value;
     moreButton.disabled = value;
     retryButton.disabled = value;
@@ -393,7 +408,7 @@
       loadingGrid.replaceChildren();
       seen.clear();
     }
-    const targetTotal = imageCount() + loadingGrid.children.length + Math.max(0, targetCount);
+    const targetTotal = imageCount() + pendingImageCount() + Math.max(0, targetCount);
     setLoading(true);
     try {
       const source = sourceSelect ? sourceSelect.value : "auto";
@@ -402,7 +417,7 @@
       let usedFallback = false;
       // Some public sources return only a small batch per request. Keep requesting
       // until the requested number of usable cards is queued, without endless retries.
-      while (imageCount() + loadingGrid.children.length < targetTotal && attempts < 10) {
+      while (imageCount() + pendingImageCount() < targetTotal && attempts < 10) {
         attempts++;
         const response = await fetch("/api/gallery?source=" + encodeURIComponent(source) + "&count=100", {
           method: "GET",
@@ -422,28 +437,28 @@
             added++;
           }
         });
-        if (!imageCount() && !loadingGrid.children.length) {
+        if (!imageCount() && !pendingImageCount()) {
           throw new Error("暂时没有获取到图片，请稍后重试");
         }
         if (batchAdded === 0) break;
       }
-      if (!imageCount() && !loadingGrid.children.length) {
+      if (!imageCount() && !pendingImageCount()) {
         throw new Error("暂时没有获取到图片，请稍后重试");
       }
       const visibleCount = imageCount();
-      const pendingCount = loadingGrid.children.length;
+      const pendingCount = pendingImageCount();
       status.textContent = currentSourceName + " · 已显示 " + visibleCount + " 张" +
         (pendingCount ? " · 另有 " + pendingCount + " 张加载中" : "") +
         " · API " + (lastLatency !== null ? lastLatency + " ms" : "响应正常") +
         (usedFallback ? " · 已自动切换备用源" : "");
     } catch (error) {
       console.warn("Gallery request failed:", error);
-      if (!imageCount() && !loadingGrid.children.length) {
+      if (!imageCount() && !pendingImageCount()) {
         empty.hidden = false;
         emptyTitle.textContent = "暂时无法加载画廊";
         emptyText.textContent = (error instanceof Error ? error.message : "图片服务连接失败") + "。请检查网络后重试。";
       }
-      status.textContent = imageCount() || loadingGrid.children.length ? "部分图片加载失败，可重试" : "图片服务连接失败";
+      status.textContent = imageCount() || pendingImageCount() ? "部分图片加载失败，可重试" : "图片服务连接失败";
       if (providerStatusSummary) providerStatusSummary.textContent = "当前请求失败；可查看各源状态，或切换到自动模式。";
     } finally {
       lastBatchAdded = added;
