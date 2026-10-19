@@ -1902,3 +1902,11 @@ body.gallery-sidebar-open{ overflow:hidden; }
   min-height: 40px;
   flex: 0 0 40px;
 }
+
+
+/* Dialog card content layering must not override the absolute close-button anchors. */
+.gallery-settings-card > .gallery-settings-close,
+.gallery-tag-card > .gallery-tag-close{
+  position: absolute !important;
+  z-index: 5;
+}
