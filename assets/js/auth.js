@@ -19,7 +19,8 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, SITE_OWNER_USER_ID } from "./auth-conf
   accountButton.setAttribute("aria-haspopup", "dialog");
   accountButton.setAttribute("aria-expanded", "false");
   const heroBar = document.querySelector(".gallery-hero-bar");
-  if (heroBar) heroBar.append(accountButton);
+  const menuButton = document.getElementById("galleryMenuOpen");
+  if (heroBar) heroBar.insertBefore(accountButton, menuButton || null);
 
   const dialog = document.createElement("section");
   dialog.className = "gallery-auth-dialog";
