@@ -1509,6 +1509,16 @@ body.gallery-tags-open { overflow:hidden; }
   to { opacity: 1; translate: 0 0; scale: 1; }
 }
 
+/* Disable legacy one-way keyframes; modal state classes below own the full lifecycle. */
+.gallery-tag-card,
+.gallery-settings-card,
+.gallery-lightbox-card,
+.gallery-tag-backdrop,
+.gallery-settings-backdrop,
+.gallery-lightbox-backdrop {
+  animation: none;
+}
+
 /* All modal families share one predictable open/close lifecycle. */
 .gallery-tag-dialog.is-opening .gallery-tag-backdrop,
 .gallery-settings-dialog.is-opening .gallery-settings-backdrop,
