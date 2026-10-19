@@ -70,8 +70,7 @@
       let height = 0;
       let count = 0;
       for (const item of lane.children) {
-        if (item.classList.contains("gallery-skeleton-placeholder") ||
-            item.classList.contains("gallery-item--pending")) continue;
+        if (item.classList.contains("gallery-skeleton-placeholder")) continue;
         height += item.getBoundingClientRect().height;
         count++;
       }
@@ -129,8 +128,7 @@
       return lane;
     });
     grid.replaceChildren(...galleryLanes);
-    // Reflow real and hidden-pending cards first, then pin decorative placeholders
-    // to the very bottom of the same masonry lanes.
+    // Reflow loaded cards first, then pin decorative placeholders to the bottom.
     galleryItems.forEach((item) => getShortestGalleryLane().append(item));
     placeholders.forEach((item) => getShortestGalleryLane().append(item));
   }
