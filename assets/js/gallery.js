@@ -45,15 +45,32 @@
   const loadingGrid = document.createElement("div");
   loadingGrid.className = "gallery-grid gallery-loading-grid";
   loadingGrid.setAttribute("aria-hidden", "true");
+  loadingGrid.hidden = true;
   if (grid) grid.insertAdjacentElement("afterend", loadingGrid);
   let galleryLanes = [];
+  let loadingLanes = [];
   let galleryGeneration = 0;
+
+  function getShortestLane(lanes) {
+    if (!lanes.length) return null;
+    return lanes.reduce((shortest, current) =>
+      current.getBoundingClientRect().height < shortest.getBoundingClientRect().height ? current : shortest,
+      lanes[0]);
+  }
 
   function getShortestGalleryLane() {
     if (!galleryLanes.length) setGalleryLaneCount("auto");
-    return galleryLanes.reduce((shortest, current) =>
-      current.getBoundingClientRect().height < shortest.getBoundingClientRect().height ? current : shortest,
-      galleryLanes[0]);
+    return getShortestLane(galleryLanes);
+  }
+
+  function getShortestLoadingLane() {
+    if (!loadingLanes.length) setGalleryLaneCount(columnsSelect?.value || "auto");
+    return getShortestLane(loadingLanes);
+  }
+
+  function updateLoadingGridVisibility() {
+    const hasLoadingContent = loadingGrid.querySelector(".gallery-item--pending, .gallery-skeleton-placeholder");
+    loadingGrid.hidden = !hasLoadingContent;
   }
 
   function imageCount() {
@@ -69,20 +86,29 @@
       ? Number(value)
       : (window.matchMedia("(max-width: 760px)").matches ? 2 : 3);
     const existingItems = [...grid.querySelectorAll(":scope > .gallery-column > *")];
+    const existingLoadingItems = [...loadingGrid.querySelectorAll(":scope > .gallery-loading-column > *")];
     galleryLanes = Array.from({ length: count }, () => {
       const lane = document.createElement("div");
       lane.className = "gallery-column";
       return lane;
     });
+    loadingLanes = Array.from({ length: count }, () => {
+      const lane = document.createElement("div");
+      lane.className = "gallery-loading-column";
+      return lane;
+    });
     grid.replaceChildren(...galleryLanes);
-    // Rebalance all content, including loading cards and skeletons, only when
-    // the user changes column count or the responsive breakpoint changes.
+    loadingGrid.replaceChildren(...loadingLanes);
+    // Keep completed cards in the existing masonry lanes and loading cards in
+    // a separate, matching set of vertical lanes below the completed gallery.
     existingItems.forEach((item) => getShortestGalleryLane().append(item));
+    existingLoadingItems.forEach((item, index) => loadingLanes[index % count].append(item));
     if (value === "auto" || !["2", "3", "4", "5"].includes(value)) {
       loadingGrid.style.removeProperty("--gallery-columns");
     } else {
       loadingGrid.style.setProperty("--gallery-columns", value);
     }
+    updateLoadingGridVisibility();
   }
 
   // Custom theme-matched dropdowns; native selects remain as the state bridge.
@@ -469,15 +495,17 @@
     loading = value;
     if (value) {
       loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
-      // Loading-only cards remain below the completed gallery while image requests settle.
-      for (let i = 0; i < 12; i++) {
+      // Fifteen fixed portrait placeholders, evenly distributed across the loading lanes.
+      for (let i = 0; i < 15; i++) {
         const skeleton = document.createElement("div");
         skeleton.className = "gallery-skeleton-placeholder";
         skeleton.setAttribute("aria-hidden", "true");
-        loadingGrid.append(skeleton);
+        loadingLanes[i % loadingLanes.length]?.append(skeleton);
       }
+      updateLoadingGridVisibility();
     } else {
       loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+      updateLoadingGridVisibility();
     }
     refreshButton.disabled = value;
     moreButton.disabled = value;
@@ -575,7 +603,8 @@
     img.alt = "插画";
     img.className = "is-loading";
     card.append(img);
-    loadingGrid.append(card);
+    getShortestLoadingLane()?.append(card);
+    updateLoadingGridVisibility();
     if (batch) {
       batch.added++;
       batch.pending++;
@@ -595,6 +624,7 @@
       settled = true;
       clearLoadTimer();
       card.remove();
+      updateLoadingGridVisibility();
       if (generation === galleryGeneration) {
         seen.delete(url);
         if (!imageCount() && !pendingImageCount() && !loading) {
@@ -629,6 +659,7 @@
       card.classList.remove("gallery-item--pending");
       card.classList.add("gallery-item--loaded");
       getShortestGalleryLane().append(card);
+      updateLoadingGridVisibility();
       empty.hidden = true;
       settleImageBatch(batch, true);
     }, { once: true });
@@ -660,7 +691,8 @@
       galleryGeneration++;
       grid.querySelectorAll(".gallery-item").forEach((card) => card.remove());
       grid.querySelectorAll(".gallery-skeleton-placeholder, .gallery-item--pending").forEach((item) => item.remove());
-      loadingGrid.replaceChildren();
+      loadingLanes.forEach((lane) => lane.replaceChildren());
+      loadingGrid.hidden = true;
       seen.clear();
       lastRequestUsedFallback = false;
     }
