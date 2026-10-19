@@ -734,7 +734,7 @@
   let activeTagCategory = "hair";
   let selectedTags = [];
   function syncSelectedTagsFromInput() {
-    selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean).slice(0, 5);
+    selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean));
   }
   function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
   function renderSelectedTags() {
@@ -763,7 +763,6 @@
       const text = document.createElement("span"); text.textContent = label; button.append(mark, text);
       button.addEventListener("click", () => {
         if (selectedTags.includes(tag)) selectedTags = selectedTags.filter((item) => item !== tag);
-        else if (selectedTags.length >= 5) { if (tagDialogHint) tagDialogHint.textContent = "最多选择 5 个标签，请先取消一个已选标签。"; return; }
         else selectedTags.push(tag);
         renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
       });
