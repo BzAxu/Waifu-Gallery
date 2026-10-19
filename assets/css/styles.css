@@ -2041,7 +2041,12 @@ body.gallery-sidebar-open { overflow:hidden; }
   box-shadow: none;
   text-decoration: none;
   cursor: default;
-  animation: none;
+  text-shadow: 0 0 22px rgba(191, 130, 255, .12);
+  animation: name-spectrum 4s linear infinite;
+}
+@keyframes name-spectrum {
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
 }
 
 /* The dialog opening class owns the entrance animation. Avoid replaying a second
