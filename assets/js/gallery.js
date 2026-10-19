@@ -233,6 +233,70 @@
   lightboxCard.append(downloadButton);
 
 
+  // Shared dialog lifecycle: animate both entrance and exit, while respecting reduced-motion preferences.
+  const dialogCloseCleanup = new WeakMap();
+  function openAnimatedDialog(dialog, bodyClass) {
+    if (!dialog) return;
+    const previousCleanup = dialogCloseCleanup.get(dialog);
+    if (previousCleanup) previousCleanup();
+    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card");
+    dialog.hidden = false;
+    dialog.classList.remove("is-opening", "is-closing");
+    document.body.classList.add(bodyClass);
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && panel) {
+      void dialog.offsetWidth;
+      dialog.classList.add("is-opening");
+      const onOpenEnd = (event) => {
+        if (event.target !== panel || event.animationName !== "galleryDialogPanelIn") return;
+        dialog.classList.remove("is-opening");
+        dialog.removeEventListener("animationend", onOpenEnd);
+      };
+      dialog.addEventListener("animationend", onOpenEnd);
+    }
+  }
+
+  function closeAnimatedDialog(dialog, bodyClass, onClosed) {
+    if (!dialog || dialog.hidden) {
+      if (onClosed) onClosed();
+      return;
+    }
+    if (dialog.classList.contains("is-closing")) return;
+    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card");
+    const finishImmediately = () => {
+      dialog.hidden = true;
+      dialog.classList.remove("is-opening", "is-closing");
+      document.body.classList.remove(bodyClass);
+      if (onClosed) onClosed();
+    };
+    if (!panel || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finishImmediately();
+      return;
+    }
+
+    dialog.classList.remove("is-opening");
+    void dialog.offsetWidth;
+    dialog.classList.add("is-closing");
+    let finished = false;
+    let timer = 0;
+    const cleanup = () => {
+      if (timer) window.clearTimeout(timer);
+      dialog.removeEventListener("animationend", onAnimationEnd);
+      if (dialogCloseCleanup.get(dialog) === cleanup) dialogCloseCleanup.delete(dialog);
+    };
+    const finish = () => {
+      if (finished || !dialog.classList.contains("is-closing")) return;
+      finished = true;
+      cleanup();
+      finishImmediately();
+    };
+    const onAnimationEnd = (event) => {
+      if (event.target === panel && event.animationName === "galleryDialogPanelOut") finish();
+    };
+    dialog.addEventListener("animationend", onAnimationEnd);
+    timer = window.setTimeout(finish, 420);
+    dialogCloseCleanup.set(dialog, cleanup);
+  }
+
   // Secondary settings menu for all gallery information and source controls.
   const settingsDialog = document.getElementById("gallerySettingsDialog");
   const settingsOpen = document.getElementById("galleryMenuOpen");
@@ -240,16 +304,15 @@
   function openSettings() {
     if (!settingsDialog) return;
     settingsTrigger = document.activeElement;
-    settingsDialog.hidden = false;
-    document.body.classList.add("gallery-settings-open");
+    openAnimatedDialog(settingsDialog, "gallery-settings-open");
     const closeButton = settingsDialog.querySelector(".gallery-settings-close");
     if (closeButton) closeButton.focus();
   }
   function closeSettings() {
     if (!settingsDialog || settingsDialog.hidden) return;
-    settingsDialog.hidden = true;
-    document.body.classList.remove("gallery-settings-open");
-    if (settingsTrigger && typeof settingsTrigger.focus === "function") settingsTrigger.focus();
+    closeAnimatedDialog(settingsDialog, "gallery-settings-open", () => {
+      if (settingsTrigger && typeof settingsTrigger.focus === "function") settingsTrigger.focus();
+    });
   }
   if (settingsOpen) settingsOpen.addEventListener("click", openSettings);
   if (settingsDialog) {
@@ -340,7 +403,7 @@
     loading = value;
     if (value) {
       loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 12; i++) {
         const skeleton = document.createElement("div");
         skeleton.className = "gallery-skeleton-placeholder";
         skeleton.setAttribute("aria-hidden", "true");
@@ -436,6 +499,8 @@
     const card = document.createElement("button");
     card.type = "button";
     card.className = "gallery-item gallery-item--pending";
+    const revealIndex = batch ? batch.added : 0;
+    card.style.setProperty("--gallery-reveal-delay", Math.min(revealIndex, 8) * 16 + "ms");
     card.setAttribute("aria-label", "查看插画");
     const img = document.createElement("img");
     img.loading = "eager";
@@ -514,8 +579,7 @@
       downloadButton.dataset.downloadUrl = url;
       downloadButton.disabled = false;
       downloadButton.textContent = "↓ 下载图片";
-      lightbox.hidden = false;
-      document.body.classList.add("gallery-open");
+      openAnimatedDialog(lightbox, "gallery-open");
       if (!history.state || !history.state.galleryLightbox) {
         history.pushState({ ...(history.state || {}), view: "gallery", galleryLightbox: true }, "", window.location.href);
       }
@@ -677,16 +741,24 @@
     }
   });
 
+  let lightboxCloseFromHistory = false;
   function closeLightbox({ fromHistory = false } = {}) {
     if (lightbox.hidden) return;
-    lightbox.hidden = true;
-    lightboxImage.removeAttribute("src");
-    document.body.classList.remove("gallery-open");
-    if (lightboxTrigger) lightboxTrigger.focus();
-    lightboxTrigger = null;
-    // The initial gallery entry keeps view:"gallery" in history.state, so popping
-    // the preview marker closes the dialog without leaving the gallery.
-    if (!fromHistory && history.state && history.state.galleryLightbox) history.back();
+    if (lightbox.classList.contains("is-closing")) {
+      lightboxCloseFromHistory = lightboxCloseFromHistory || fromHistory;
+      return;
+    }
+    lightboxCloseFromHistory = fromHistory;
+    closeAnimatedDialog(lightbox, "gallery-open", () => {
+      lightboxImage.removeAttribute("src");
+      if (lightboxTrigger) lightboxTrigger.focus();
+      lightboxTrigger = null;
+      // The initial gallery entry keeps view:"gallery" in history.state, so popping
+      // the preview marker closes the dialog without leaving the gallery.
+      const shouldGoBack = !lightboxCloseFromHistory && history.state && history.state.galleryLightbox;
+      lightboxCloseFromHistory = false;
+      if (shouldGoBack) history.back();
+    });
   }
   lightbox.querySelectorAll("[data-gallery-close]").forEach((button) => button.addEventListener("click", () => closeLightbox()));
   document.addEventListener("keydown", (event) => {
@@ -733,6 +805,8 @@
   };
   let activeTagCategory = "hair";
   let selectedTags = [];
+  let tagDialogTrigger = null;
+  let tagOptionsAnimationTimer = 0;
   function syncSelectedTagsFromInput() {
     selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean);
   }
@@ -754,6 +828,8 @@
   }
   function renderTagOptions() {
     if (!tagOptions) return;
+    tagOptions.classList.remove("tag-options-enter");
+    if (tagOptionsAnimationTimer) window.clearTimeout(tagOptionsAnimationTimer);
     tagOptions.replaceChildren();
     (TAG_CATEGORIES[activeTagCategory] || []).forEach(([tag, label]) => {
       const button = document.createElement("button"); button.type = "button";
@@ -768,6 +844,14 @@
       });
       tagOptions.append(button);
     });
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      void tagOptions.offsetWidth;
+      tagOptions.classList.add("tag-options-enter");
+      tagOptionsAnimationTimer = window.setTimeout(() => {
+        tagOptions.classList.remove("tag-options-enter");
+        tagOptionsAnimationTimer = 0;
+      }, 320);
+    }
   }
   function updateTagDialogHint() {
     if (!tagDialogHint) return;
@@ -779,15 +863,17 @@
   }
   function openTagDialog() {
     if (!tagDialog) return;
+    tagDialogTrigger = document.activeElement;
     syncSelectedTagsFromInput(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
-    tagDialog.hidden = false; document.body.classList.add("gallery-tags-open");
-    tagDialog.classList.remove("is-closing"); tagDialog.classList.add("is-opening");
+    openAnimatedDialog(tagDialog, "gallery-tags-open");
     const closeButton = tagDialog.querySelector(".gallery-tag-close"); if (closeButton) closeButton.focus();
   }
   function closeTagDialog() {
     if (!tagDialog || tagDialog.hidden) return;
-    tagDialog.hidden = true; document.body.classList.remove("gallery-tags-open");
-    if (tagDialogOpen) tagDialogOpen.focus();
+    closeAnimatedDialog(tagDialog, "gallery-tags-open", () => {
+      if (tagDialogTrigger && typeof tagDialogTrigger.focus === "function") tagDialogTrigger.focus();
+      tagDialogTrigger = null;
+    });
   }
   if (tagDialogOpen) tagDialogOpen.addEventListener("click", openTagDialog);
   if (tagSettingsOpen) tagSettingsOpen.addEventListener("click", openTagDialog);
