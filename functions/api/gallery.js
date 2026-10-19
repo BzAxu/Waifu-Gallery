@@ -70,7 +70,8 @@ const PROVIDERS = [
       target.searchParams.set("s", "post");
       target.searchParams.set("q", "index");
       target.searchParams.set("json", "1");
-      target.searchParams.set("tags", ["rating:safe", ...tags].join(" "));
+      // Random ordering prevents every refresh from returning Safebooru's same first page.
+      target.searchParams.set("tags", ["rating:safe", "order:random", ...tags].join(" "));
       target.searchParams.set("limit", "20");
       return target.toString();
     },
