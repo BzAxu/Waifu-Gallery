@@ -312,6 +312,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, SITE_OWNER_USER_ID } from "./auth-conf
       const { error } = await client.auth.updateUser({ password });
       if (error) throw error;
       setPasswordForm.reset();
+      setPasswordForm.hidden = true;
       setStatus("密码已保存，账号已就绪。", "success");
       history.replaceState(history.state, "", window.location.pathname + window.location.search);
       const { data } = await client.auth.getSession();
