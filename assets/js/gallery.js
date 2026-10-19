@@ -37,7 +37,9 @@
   // Keep API requests inside the gallery subpath when proxied through bzaxu.top.
   // On the standalone Pages domain, continue using the normal /api/gallery endpoint.
   function galleryApiUrl(query = "") {
-    const prefix = window.location.pathname.startsWith("/Waifu-Gallery") ? "/Waifu-Gallery" : "";
+    const pathname = window.location.pathname;
+    const isGallerySubpath = pathname === "/Waifu-Gallery" || pathname.startsWith("/Waifu-Gallery/");
+    const prefix = isGallerySubpath ? "/Waifu-Gallery" : "";
     return prefix + "/api/gallery" + query;
   }
 
@@ -1108,7 +1110,10 @@
   let tagDialogTrigger = null;
   let tagOptionsAnimationTimer = 0;
   function syncSelectedTagsFromInput() {
-    selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean);
+    const parsed = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : [])
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    selectedTags = [...new Set(parsed)];
   }
   function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
   // Reconcile selected chips in place. Replacing every child on each click
