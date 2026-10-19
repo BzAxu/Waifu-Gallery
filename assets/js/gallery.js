@@ -111,15 +111,18 @@
       ? Number(value)
       : (window.matchMedia("(max-width: 760px)").matches ? 2 : 3);
     const existingItems = [...grid.querySelectorAll(":scope > .gallery-column > *")];
+    const placeholders = existingItems.filter((item) => item.classList.contains("gallery-skeleton-placeholder"));
+    const galleryItems = existingItems.filter((item) => !item.classList.contains("gallery-skeleton-placeholder"));
     galleryLanes = Array.from({ length: count }, () => {
       const lane = document.createElement("div");
       lane.className = "gallery-column";
       return lane;
     });
     grid.replaceChildren(...galleryLanes);
-    // Reflow every existing card, including pending cards and skeletons, through
-    // the same masonry lanes. No separate loading grid or column bookkeeping.
-    existingItems.forEach((item) => getShortestGalleryLane().append(item));
+    // Reflow real and hidden-pending cards first, then pin decorative placeholders
+    // to the very bottom of the same masonry lanes.
+    galleryItems.forEach((item) => getShortestGalleryLane().append(item));
+    placeholders.forEach((item) => getShortestGalleryLane().append(item));
   }
 
   // Custom theme-matched dropdowns; native selects remain as the state bridge.
