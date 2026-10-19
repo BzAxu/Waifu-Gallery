@@ -840,36 +840,29 @@
   retryButton.addEventListener("click", () => loadImages({ reset: imageCount() === 0, targetCount: imageCount() === 0 ? 100 : 20 }));
   moreButton.addEventListener("click", () => loadImages({ targetCount: 20 }));
 
-  // Infinite scroll: prefetch the next batch before the user reaches the bottom.
-  // Re-arm only after the sentinel leaves the prefetch area; never spin on empty batches.
-  if ("IntersectionObserver" in window && moreButton) {
-    scrollObserver = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) {
-          autoLoadArmed = true;
-          continue;
-        }
-        if (autoLoadArmed && !loading && pendingImageCount() === 0 &&
-            currentRoute === "gallery" && lastBatchAdded > 0) {
-          autoLoadArmed = false;
-          loadImages({ targetCount: 20 });
-        }
+  // Reliable infinite scroll: check the sentinel on scroll, resize, and after every batch.
+  // This also fills short screens automatically without depending on observer re-entry.
+  let autoLoadCheckPending = false;
+  function checkAutoLoad() {
+    if (autoLoadCheckPending || loading || pendingImageCount() > 0 ||
+        currentRoute !== "gallery" || lastBatchAdded <= 0 || !moreButton) return;
+    autoLoadCheckPending = true;
+    requestAnimationFrame(() => {
+      autoLoadCheckPending = false;
+      if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" ||
+          lastBatchAdded <= 0 || !moreButton) return;
+      if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
+        loadImages({ targetCount: 20 });
       }
-    }, { root: null, rootMargin: "700px 0px", threshold: 0 });
+    });
+  }
+  window.addEventListener("scroll", checkAutoLoad, { passive: true });
+  window.addEventListener("resize", checkAutoLoad, { passive: true });
+  if ("IntersectionObserver" in window && moreButton) {
+    scrollObserver = new IntersectionObserver(() => checkAutoLoad(), {
+      root: null, rootMargin: "700px 0px", threshold: 0
+    });
     scrollObserver.observe(moreButton);
-  } else {
-    // Fallback for browsers without IntersectionObserver.
-    let scrollCheckPending = false;
-    window.addEventListener("scroll", () => {
-      if (scrollCheckPending || loading || pendingImageCount() > 0 ||
-          currentRoute !== "gallery" || lastBatchAdded <= 0) return;
-      scrollCheckPending = true;
-      requestAnimationFrame(() => {
-        scrollCheckPending = false;
-        const rect = moreButton.getBoundingClientRect();
-        if (rect.top < window.innerHeight + 700) loadImages({ targetCount: 20 });
-      });
-    }, { passive: true });
   }
 
   const initialRoute = "gallery";
