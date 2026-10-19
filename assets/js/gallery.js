@@ -16,6 +16,7 @@
   const tagApplyButton = document.getElementById("galleryTagApply");
   const tagHint = document.getElementById("galleryTagHint");
   const tagDialog = document.getElementById("galleryTagDialog");
+  const tagDialogOpen = document.getElementById("galleryTagOpen");
   const tagSettingsOpen = document.getElementById("galleryTagSettingsOpen");
   const tagOptions = document.getElementById("galleryTagOptions");
   const tagSelected = document.getElementById("galleryTagSelected");
@@ -36,9 +37,7 @@
   // Keep API requests inside the gallery subpath when proxied through bzaxu.top.
   // On the standalone Pages domain, continue using the normal /api/gallery endpoint.
   function galleryApiUrl(query = "") {
-    const pathname = window.location.pathname;
-    const isGallerySubpath = pathname === "/Waifu-Gallery" || pathname.startsWith("/Waifu-Gallery/");
-    const prefix = isGallerySubpath ? "/Waifu-Gallery" : "";
+    const prefix = window.location.pathname.startsWith("/Waifu-Gallery") ? "/Waifu-Gallery" : "";
     return prefix + "/api/gallery" + query;
   }
 
@@ -232,22 +231,6 @@
         if (otherTrigger) otherTrigger.setAttribute("aria-expanded", "false");
       });
       if (opening) {
-        const rect = trigger.getBoundingClientRect();
-        // The settings sheet itself scrolls and clips overflow, so calculate
-        // room inside that sheet rather than against the whole browser viewport.
-        const scrollBoundary = wrapper.closest(".gallery-settings-card");
-        const boundaryRect = scrollBoundary ? scrollBoundary.getBoundingClientRect() : {
-          top: 0, bottom: window.innerHeight
-        };
-        const boundaryTop = Math.max(0, boundaryRect.top);
-        const boundaryBottom = Math.min(window.innerHeight, boundaryRect.bottom);
-        const availableAbove = Math.max(0, rect.top - boundaryTop - 8);
-        const availableBelow = Math.max(0, boundaryBottom - rect.bottom - 8);
-        const expectedMenuHeight = Math.min(options.length * 43 + 16, window.innerHeight * 0.46, 320);
-        const opensUp = availableBelow < expectedMenuHeight + 24 && availableAbove > availableBelow;
-        const room = opensUp ? availableAbove : availableBelow;
-        wrapper.classList.toggle("opens-up", opensUp);
-        menu.style.maxHeight = Math.max(80, Math.min(expectedMenuHeight, room - 4)) + "px";
         menu.hidden = false;
         wrapper.classList.add("is-open");
         trigger.setAttribute("aria-expanded", "true");
@@ -268,16 +251,11 @@
         trigger.focus();
         return;
       }
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (event.key === "ArrowDown" && menu.hidden) {
         event.preventDefault();
-        const wasClosed = menu.hidden;
-        if (wasClosed) trigger.click();
-        if (!options.length) return;
-        const selectedIndex = options.findIndex(({ option }) => option.value === select.value);
-        const targetIndex = event.key === "ArrowUp" && wasClosed
-          ? options.length - 1
-          : Math.max(0, selectedIndex);
-        options[targetIndex]?.item.focus();
+        trigger.click();
+        const selected = options.find(({ option }) => option.value === select.value);
+        if (selected) selected.item.focus();
       }
     });
     menu.addEventListener("keydown", (event) => {
@@ -329,11 +307,6 @@
     } catch (_) {}
     applyColumnCount(savedColumns);
     columnsSelect.addEventListener("change", () => applyColumnCount(columnsSelect.value));
-    // The native select's value is restored programmatically, so explicitly
-    // sync the visual custom picker label when a saved non-auto value exists.
-    if (savedColumns !== "auto") {
-      columnsSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    }
   }
 
   // Keep the number of fixed lanes in sync with the responsive CSS grid.
@@ -361,11 +334,8 @@
 
   // Shared dialog lifecycle: animate both entrance and exit, while respecting reduced-motion preferences.
   const dialogCloseCleanup = new WeakMap();
-  const dialogOpenCleanup = new WeakMap();
   function openAnimatedDialog(dialog, bodyClass) {
     if (!dialog) return;
-    const previousOpenCleanup = dialogOpenCleanup.get(dialog);
-    if (previousOpenCleanup) previousOpenCleanup();
     const previousCleanup = dialogCloseCleanup.get(dialog);
     if (previousCleanup) previousCleanup();
     const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card");
@@ -375,20 +345,12 @@
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && panel) {
       void dialog.offsetWidth;
       dialog.classList.add("is-opening");
-      let cleanupOpen = () => {};
       const onOpenEnd = (event) => {
         if (event.target !== panel || !event.animationName.startsWith("galleryDialogPanelIn")) return;
         dialog.classList.remove("is-opening");
-        cleanupOpen();
-      };
-      cleanupOpen = () => {
         dialog.removeEventListener("animationend", onOpenEnd);
-        dialog.removeEventListener("animationcancel", cleanupOpen);
-        if (dialogOpenCleanup.get(dialog) === cleanupOpen) dialogOpenCleanup.delete(dialog);
       };
       dialog.addEventListener("animationend", onOpenEnd);
-      dialog.addEventListener("animationcancel", cleanupOpen);
-      dialogOpenCleanup.set(dialog, cleanupOpen);
     }
   }
 
@@ -410,8 +372,6 @@
       return;
     }
 
-    const pendingOpenCleanup = dialogOpenCleanup.get(dialog);
-    if (pendingOpenCleanup) pendingOpenCleanup();
     dialog.classList.remove("is-opening");
     void dialog.offsetWidth;
     dialog.classList.add("is-closing");
@@ -447,12 +407,12 @@
 
   // Modal priority follows the intended visual stack: preview > tag picker > settings.
   function getTopmostOpenDialog() {
-    // Keep a closing overlay in the stack until it is actually hidden so a rapid
-    // second Escape cannot close the dialog behind it mid-transition.
-    return [lightbox, tagDialog, settingsDialog].find((dialog) => dialog && !dialog.hidden) || null;
+    return [lightbox, tagDialog, settingsDialog].find((dialog) =>
+      dialog && !dialog.hidden && !dialog.classList.contains("is-closing")
+    ) || null;
   }
   function getDialogFocusable(dialog) {
-    return [...dialog.querySelectorAll('a[href], summary, button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    return [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
       .filter((element) =>
         !element.hidden &&
         !element.closest("[hidden], [inert]") &&
@@ -464,10 +424,6 @@
   }
   function trapDialogTab(event, dialog) {
     if (event.key !== "Tab" || getTopmostOpenDialog() !== dialog) return;
-    if (dialog.classList.contains("is-closing")) {
-      event.preventDefault();
-      return;
-    }
     const controls = getDialogFocusable(dialog);
     if (!controls.length) {
       event.preventDefault();
@@ -566,7 +522,6 @@
       if (settingsDialog.hidden || getTopmostOpenDialog() !== settingsDialog) return;
       if (event.key === "Escape") {
         event.preventDefault();
-        event.stopImmediatePropagation();
         closeSettings();
       } else {
         trapDialogTab(event, settingsDialog);
@@ -693,9 +648,6 @@
       empty.hidden = true;
       status.textContent = "正在获取公开插画…";
     }
-    // Keep all tag controls synchronized with the in-flight request state. This
-    // prevents confirming a new filter while loadImages() would ignore it.
-    updateTagFilterAvailability();
   }
 
   function showNoImagesState(message = "图片文件暂时无法加载。请尝试切换图片源或重试。") {
@@ -1083,7 +1035,6 @@
     if (lightbox.hidden || getTopmostOpenDialog() !== lightbox) return;
     if (event.key === "Escape") {
       event.preventDefault();
-      event.stopImmediatePropagation();
       closeLightbox();
       return;
     }
@@ -1135,10 +1086,7 @@
   let tagDialogTrigger = null;
   let tagOptionsAnimationTimer = 0;
   function syncSelectedTagsFromInput() {
-    const parsed = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : [])
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-    selectedTags = [...new Set(parsed)];
+    selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean);
   }
   function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
   // Reconcile selected chips in place. Replacing every child on each click
@@ -1159,11 +1107,8 @@
       }
     } else {
       emptyTag?.remove();
-      const existingTags = new Set(
-        [...tagSelected.querySelectorAll(".gallery-tag-selected-chip")].map((chip) => chip.dataset.tag)
-      );
       selectedTags.forEach((tag) => {
-        if (existingTags.has(tag)) return;
+        if (tagSelected.querySelector('[data-tag="' + CSS.escape(tag) + '"].gallery-tag-selected-chip')) return;
         const chip = document.createElement("span");
         chip.className = "gallery-tag-selected-chip";
         chip.dataset.tag = tag;
@@ -1181,7 +1126,6 @@
         });
         chip.append(name, remove);
         tagSelected.append(chip);
-        existingTags.add(tag);
       });
     }
     if (tagConfirmButton) tagConfirmButton.textContent = selectedTags.length ? "应用筛选（" + selectedTags.length + "）" : "清除筛选";
@@ -1251,11 +1195,6 @@
   }
   function openTagDialog() {
     if (!tagDialog) return;
-    if (loading) return;
-    if (!tagFilteringAvailable()) {
-      showToast("当前图片源不支持标签筛选，请先切换图片源");
-      return;
-    }
     tagDialogTrigger = document.activeElement;
     syncSelectedTagsFromInput(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
     openAnimatedDialog(tagDialog, "gallery-tags-open");
@@ -1276,7 +1215,6 @@
       if (tagDialog.hidden || getTopmostOpenDialog() !== tagDialog) return;
       if (event.key === "Escape") {
         event.preventDefault();
-        event.stopImmediatePropagation();
         closeTagDialog();
       } else {
         trapDialogTab(event, tagDialog);
@@ -1305,28 +1243,10 @@
   }
   function updateTagFilterAvailability() {
     const available = tagFilteringAvailable();
-    const unavailable = loading || !available;
-    if (tagInput) tagInput.disabled = unavailable;
-    if (tagApplyButton) tagApplyButton.disabled = unavailable;
-    if (tagSettingsOpen) tagSettingsOpen.disabled = unavailable;
-    if (sidebarTagsButton) {
-      sidebarTagsButton.disabled = unavailable;
-      sidebarTagsButton.title = !available
-        ? "当前图片源不支持标签筛选，请到画廊设置切换图片源"
-        : "";
-    }
-    if (tagConfirmButton) tagConfirmButton.disabled = unavailable;
-    if (tagClearButton) tagClearButton.disabled = loading;
-    if (tagCategoryTabs) {
-      tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((tab) => {
-        tab.disabled = unavailable;
-      });
-    }
-    if (tagOptions) {
-      tagOptions.querySelectorAll(".gallery-tag-option").forEach((option) => {
-        option.disabled = unavailable;
-      });
-    }
+    if (tagInput) tagInput.disabled = !available;
+    if (tagApplyButton) tagApplyButton.disabled = !available;
+    if (tagSettingsOpen) tagSettingsOpen.disabled = loading || !available;
+    if (tagDialogOpen) tagDialogOpen.disabled = loading || !available;
     if (tagHint && !available) tagHint.textContent = "当前图片源不支持标签筛选。切换到自动模式、Nekos API 或 Safebooru 即可使用。";
     else if (tagHint && !tagInput.value) tagHint.textContent = "尚未选择标签。可按发色、角色特征、服装和场景分类筛选。";
     updateTagDialogHint();
