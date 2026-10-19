@@ -410,7 +410,7 @@
       requestAnimationFrame(() => {
         if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" || lastBatchAdded <= 0) return;
         if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-          loadImages({ targetCount: 20 });
+          loadImages({ targetCount: 100 });
         }
       });
     }
@@ -838,7 +838,7 @@
   updateTagFilterAvailability();
   if (providerStatusRefresh) providerStatusRefresh.addEventListener("click", checkProviderStatus);
   retryButton.addEventListener("click", () => loadImages({ reset: imageCount() === 0, targetCount: imageCount() === 0 ? 100 : 20 }));
-  moreButton.addEventListener("click", () => loadImages({ targetCount: 20 }));
+  moreButton.addEventListener("click", () => loadImages({ targetCount: 100 }));
 
   // Reliable infinite scroll: check the sentinel on scroll, resize, and after every batch.
   // This also fills short screens automatically without depending on observer re-entry.
@@ -852,7 +852,7 @@
       if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" ||
           lastBatchAdded <= 0 || !moreButton) return;
       if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-        loadImages({ targetCount: 20 });
+        loadImages({ targetCount: 100 });
       }
     });
   }
