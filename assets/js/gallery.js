@@ -35,10 +35,14 @@
 
   // Stable masonry lanes: adding a later image never rebalances existing cards.
   let galleryLanes = [];
-  let imageSequence = 0;
-  let nextSequenceToRender = 0;
   let galleryGeneration = 0;
-  const readyImages = new Map();
+
+  function getShortestGalleryLane() {
+    if (!galleryLanes.length) setGalleryLaneCount("auto");
+    return galleryLanes.reduce((shortest, current) =>
+      current.getBoundingClientRect().height < shortest.getBoundingClientRect().height ? current : shortest,
+      galleryLanes[0]);
+  }
 
   function imageCount() {
     return grid.querySelectorAll(".gallery-item").length;
@@ -59,23 +63,9 @@
       return lane;
     });
     grid.replaceChildren(...galleryLanes);
-    // Rebuild only when the user changes the column setting; keep card order.
-    existingCards.forEach((card) => {
-      const lane = galleryLanes.reduce((shortest, current) =>
-        current.scrollHeight < shortest.scrollHeight ? current : shortest, galleryLanes[0]);
-      lane.append(card);
-    });
-  }
-
-  function flushReadyImages() {
-    while (readyImages.has(nextSequenceToRender)) {
-      const card = readyImages.get(nextSequenceToRender);
-      readyImages.delete(nextSequenceToRender++);
-      if (!card) continue;
-      const lane = galleryLanes.reduce((shortest, current) =>
-        current.scrollHeight < shortest.scrollHeight ? current : shortest, galleryLanes[0]);
-      lane.append(card);
-    }
+    // Existing cards are only rebalanced when the user changes column count
+    // or the automatic responsive breakpoint changes.
+    existingCards.forEach((card) => getShortestGalleryLane().append(card));
   }
 
   // Custom theme-matched dropdowns; native selects remain as the state bridge.
@@ -208,6 +198,18 @@
     columnsSelect.addEventListener("change", () => applyColumnCount(columnsSelect.value));
   }
 
+  // Keep the number of fixed lanes in sync with the responsive CSS grid.
+  let laneResizeFrame = 0;
+  window.addEventListener("resize", () => {
+    if (!columnsSelect || columnsSelect.value !== "auto") return;
+    if (laneResizeFrame) cancelAnimationFrame(laneResizeFrame);
+    laneResizeFrame = requestAnimationFrame(() => {
+      laneResizeFrame = 0;
+      const expectedCount = window.matchMedia("(max-width: 760px)").matches ? 2 : 3;
+      if (galleryLanes.length !== expectedCount) setGalleryLaneCount("auto");
+    });
+  }, { passive: true });
+
   // Add a download action to the image preview without changing the page template.
   const lightboxCard = lightbox.querySelector(".gallery-lightbox-card");
   const downloadButton = document.createElement("button");
@@ -258,6 +260,10 @@
   const seen = new Set();
   let loading = false;
   let lastBatchAdded = 1;
+  let imageBatchSequence = 0;
+  let latestImageBatch = null;
+  let lastApiLatency = null;
+  let lastRequestUsedFallback = false;
   let autoLoadArmed = true;
   let scrollObserver = null;
   let currentRoute = "home";
@@ -310,7 +316,9 @@
       closeLightbox({ fromHistory: true });
       return;
     }
-    renderRoute(new URL(window.location.href).searchParams.get("page") === "gallery" ? "gallery" : "home");
+    const isGalleryEntry = (history.state && history.state.view === "gallery") ||
+      new URL(window.location.href).searchParams.get("page") === "gallery";
+    renderRoute(isGalleryEntry ? "gallery" : "home");
   });
 
   function setLoading(value) {
@@ -329,6 +337,19 @@
     refreshButton.disabled = value;
     moreButton.disabled = value;
     retryButton.disabled = value;
+    if (sourceSelect) sourceSelect.disabled = value;
+    const sourcePicker = document.querySelector('.gallery-custom-select[data-select-key="source"]');
+    if (sourcePicker) {
+      const trigger = sourcePicker.querySelector(".gallery-custom-select-trigger");
+      const menu = sourcePicker.querySelector(".gallery-custom-select-menu");
+      if (trigger) trigger.disabled = value;
+      if (menu) {
+        menu.querySelectorAll("button").forEach((button) => { button.disabled = value; });
+        if (value) menu.hidden = true;
+      }
+      if (value) sourcePicker.classList.remove("is-open");
+      if (trigger && value) trigger.setAttribute("aria-expanded", "false");
+    }
     refreshButton.textContent = value ? "加载中…" : "↻ 刷新";
     moreButton.textContent = value ? "正在加载…" : "再看一些 ↓";
     if (value) {
@@ -337,53 +358,136 @@
     }
   }
 
-  function addImage(url, sourceName = "图片源") {
+  function showNoImagesState(message = "图片文件暂时无法加载。请尝试切换图片源或重试。") {
+    empty.hidden = false;
+    emptyTitle.textContent = "暂时无法显示图片";
+    emptyText.textContent = message;
+  }
+
+  function updateGalleryStatus() {
+    if (!status || loading) return;
+    const loaded = imageCount();
+    const pending = pendingImageCount();
+    if (!loaded && !pending) {
+      status.textContent = "图片加载失败，可切换图片源或重试";
+      return;
+    }
+    status.textContent = (currentSourceName || "图片源") + " · 已显示 " + loaded + " 张" +
+      (pending ? " · " + pending + " 张加载中" : "") +
+      (lastApiLatency !== null ? " · API " + lastApiLatency + " ms" : "") +
+      (lastRequestUsedFallback ? " · 已自动切换备用源" : "");
+  }
+
+  function refreshAutoLoadAfterImages() {
+    if (loading || pendingImageCount() > 0) return;
+    if (latestImageBatch && latestImageBatch.requestFinished) {
+      lastBatchAdded = latestImageBatch.loaded;
+    }
+    if (scrollObserver && moreButton) {
+      autoLoadArmed = true;
+      scrollObserver.unobserve(moreButton);
+      scrollObserver.observe(moreButton);
+      return;
+    }
+    if (currentRoute === "gallery" && moreButton && lastBatchAdded > 0) {
+      requestAnimationFrame(() => {
+        if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" || lastBatchAdded <= 0) return;
+        if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
+          loadImages({ targetCount: 20 });
+        }
+      });
+    }
+  }
+
+  function settleImageBatch(batch, loaded) {
+    if (batch) {
+      batch.pending = Math.max(0, batch.pending - 1);
+      if (loaded) batch.loaded++;
+      else batch.failed++;
+    }
+    updateGalleryStatus();
+    if (!imageCount() && !pendingImageCount() && !loading) {
+      showNoImagesState();
+    }
+    refreshAutoLoadAfterImages();
+  }
+
+  function addImage(url, sourceName = "图片源", batch = null) {
     if (!url || seen.has(url)) return false;
     seen.add(url);
-    const sequence = imageSequence++;
     const generation = galleryGeneration;
     const card = document.createElement("button");
     card.type = "button";
-    card.className = "gallery-item";
+    card.className = "gallery-item gallery-item--pending";
     card.setAttribute("aria-label", "查看插画");
     const img = document.createElement("img");
     img.loading = "eager";
     img.decoding = "async";
     img.alt = "插画";
     img.className = "is-loading";
-
-    // Keep the unfinished image in a separate loading strip below the gallery.
-    // Only move it into the gallery after the browser has fully loaded it.
-    card.classList.add("gallery-item--pending");
     card.append(img);
     loadingGrid.append(card);
+    if (batch) {
+      batch.added++;
+      batch.pending++;
+    }
 
-    img.addEventListener("load", () => {
-      if (generation !== galleryGeneration) { card.remove(); return; }
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        img.style.aspectRatio = img.naturalWidth + " / " + img.naturalHeight;
-        img.style.height = "auto";
-        img.dataset.naturalRatio = img.naturalWidth + ":" + img.naturalHeight;
+    card.dataset.sourceUrl = url;
+    card.dataset.title = "随机插画";
+    let settled = false;
+    let loadTimer = 0;
+
+    const clearLoadTimer = () => {
+      if (loadTimer) window.clearTimeout(loadTimer);
+      loadTimer = 0;
+    };
+    const failImage = () => {
+      if (settled) return;
+      settled = true;
+      clearLoadTimer();
+      card.remove();
+      if (generation === galleryGeneration) {
+        seen.delete(url);
+        if (!imageCount() && !pendingImageCount() && !loading) {
+          showNoImagesState("图片文件无法加载。请切换图片源、检查网络或重试。");
+        }
       }
+      settleImageBatch(batch, false);
+    };
+
+    img.addEventListener("load", async () => {
+      if (settled) return;
+      if (generation !== galleryGeneration) { failImage(); return; }
+      try {
+        if (typeof img.decode === "function") await img.decode();
+      } catch (_) {
+        // Some browsers reject decode() even when the image is usable; check natural size below.
+      }
+      if (settled) return;
+      if (generation !== galleryGeneration || !img.naturalWidth || !img.naturalHeight) {
+        failImage();
+        return;
+      }
+
+      img.style.aspectRatio = img.naturalWidth + " / " + img.naturalHeight;
+      img.style.height = "auto";
+      img.dataset.naturalRatio = img.naturalWidth + ":" + img.naturalHeight;
+      settled = true;
+      clearLoadTimer();
+
+      // Keep the placeholder intact until decoding finishes, then move the card
+      // directly into the shortest measured lane in one task. No API-order queue.
       img.classList.remove("is-loading");
       card.classList.remove("gallery-item--pending");
       card.classList.add("gallery-item--loaded");
-      // Queue by API order; only render in order, then place in the shortest fixed lane.
-      readyImages.set(sequence, card);
-      flushReadyImages();
+      getShortestGalleryLane().append(card);
+      empty.hidden = true;
+      settleImageBatch(batch, true);
     }, { once: true });
 
-    img.addEventListener("error", () => {
-      card.remove();
-      if (generation !== galleryGeneration) return;
-      seen.delete(url);
-      readyImages.set(sequence, null);
-      flushReadyImages();
-    }, { once: true });
-
+    img.addEventListener("error", failImage, { once: true });
+    loadTimer = window.setTimeout(failImage, 20000);
     img.src = url;
-    card.dataset.sourceUrl = url;
-    card.dataset.title = "随机插画";
     card.addEventListener("click", () => {
       lightboxTrigger = card;
       lightboxImage.src = url;
@@ -405,28 +509,35 @@
 
   async function loadImages({ reset = false, targetCount = 20 } = {}) {
     if (loading) return;
-    let added = 0;
     if (reset) {
       galleryGeneration++;
-      imageSequence = 0;
-      nextSequenceToRender = 0;
-      readyImages.clear();
       grid.querySelectorAll(".gallery-item").forEach((card) => card.remove());
       loadingGrid.replaceChildren();
       seen.clear();
+      lastRequestUsedFallback = false;
     }
     const targetTotal = imageCount() + pendingImageCount() + Math.max(0, targetCount);
+    const batch = {
+      id: ++imageBatchSequence,
+      added: 0,
+      pending: 0,
+      loaded: 0,
+      failed: 0,
+      requestFinished: false
+    };
+    latestImageBatch = batch;
     setLoading(true);
     try {
       const source = sourceSelect ? sourceSelect.value : "auto";
       let attempts = 0;
-      let lastLatency = null;
-      let usedFallback = false;
-      // Some public sources return only a small batch per request. Keep requesting
-      // until the requested number of usable cards is queued, without endless retries.
+      // Request only the number of images still needed. This keeps "load more"
+      // batches small and avoids inserting an entire 100-image response by mistake.
       while (imageCount() + pendingImageCount() < targetTotal && attempts < 10) {
+        const remaining = targetTotal - imageCount() - pendingImageCount();
+        if (remaining <= 0) break;
         attempts++;
-        const response = await fetch(galleryApiUrl("?source=" + encodeURIComponent(source) + "&count=100"), {
+        const requestedCount = Math.min(100, remaining);
+        const response = await fetch(galleryApiUrl("?source=" + encodeURIComponent(source) + "&count=" + requestedCount), {
           method: "GET",
           headers: { "Accept": "application/json" },
           cache: "no-store"
@@ -436,15 +547,13 @@
         if (!Array.isArray(data.files)) throw new Error("图片服务返回的数据格式不正确");
         let batchAdded = 0;
         currentSourceName = data.sourceName || "自动切换";
-        lastLatency = Number.isFinite(data.latency) ? data.latency : null;
-        usedFallback = usedFallback || Boolean(data.fallback);
-        data.files.forEach((url) => {
-          if (addImage(url, currentSourceName)) {
-            batchAdded++;
-            added++;
-          }
-        });
-        if (!imageCount() && !pendingImageCount()) {
+        lastApiLatency = Number.isFinite(data.latency) ? data.latency : null;
+        lastRequestUsedFallback = lastRequestUsedFallback || Boolean(data.fallback);
+        for (const url of data.files) {
+          if (imageCount() + pendingImageCount() >= targetTotal) break;
+          if (addImage(url, currentSourceName, batch)) batchAdded++;
+        }
+        if (!imageCount() && !pendingImageCount() && batchAdded === 0) {
           throw new Error("暂时没有获取到图片，请稍后重试");
         }
         if (batchAdded === 0) break;
@@ -452,12 +561,6 @@
       if (!imageCount() && !pendingImageCount()) {
         throw new Error("暂时没有获取到图片，请稍后重试");
       }
-      const visibleCount = imageCount();
-      const pendingCount = pendingImageCount();
-      status.textContent = currentSourceName + " · 已显示 " + visibleCount + " 张" +
-        (pendingCount ? " · 另有 " + pendingCount + " 张加载中" : "") +
-        " · API " + (lastLatency !== null ? lastLatency + " ms" : "响应正常") +
-        (usedFallback ? " · 已自动切换备用源" : "");
     } catch (error) {
       console.warn("Gallery request failed:", error);
       if (!imageCount() && !pendingImageCount()) {
@@ -468,15 +571,15 @@
       status.textContent = imageCount() || pendingImageCount() ? "部分图片加载失败，可重试" : "图片服务连接失败";
       if (providerStatusSummary) providerStatusSummary.textContent = "当前请求失败；可查看各源状态，或切换到自动模式。";
     } finally {
-      lastBatchAdded = added;
+      batch.requestFinished = true;
       setLoading(false);
-      // Re-evaluate the sentinel after a batch so short pages can fill the viewport,
-      // while the no-new-images guard prevents endless automatic retries.
-      if (scrollObserver && moreButton) {
-        autoLoadArmed = true;
-        scrollObserver.unobserve(moreButton);
-        scrollObserver.observe(moreButton);
+      if (!imageCount() && !pendingImageCount() && empty.hidden) {
+        showNoImagesState("没有可显示的图片。请切换图片源、检查网络或重试。");
       }
+      updateGalleryStatus();
+      // Re-arm only after pending image requests settle. Only real image loads
+      // count as a successful batch, preventing repeated retries of broken URLs.
+      refreshAutoLoadAfterImages();
     }
   }
 
@@ -561,14 +664,9 @@
     document.body.classList.remove("gallery-open");
     if (lightboxTrigger) lightboxTrigger.focus();
     lightboxTrigger = null;
-    // Closing the preview should not navigate away from the gallery.
-    // Clear the modal marker in-place instead of calling history.back(), which
-    // could resolve to the empty home view on a direct gallery visit.
-    if (!fromHistory && history.state && history.state.galleryLightbox) {
-      const nextState = { ...history.state };
-      delete nextState.galleryLightbox;
-      history.replaceState(nextState, "", window.location.href);
-    }
+    // The initial gallery entry keeps view:"gallery" in history.state, so popping
+    // the preview marker closes the dialog without leaving the gallery.
+    if (!fromHistory && history.state && history.state.galleryLightbox) history.back();
   }
   lightbox.querySelectorAll("[data-gallery-close]").forEach((button) => button.addEventListener("click", () => closeLightbox()));
   document.addEventListener("keydown", (event) => {
@@ -590,7 +688,10 @@
     }
   });
 
-  refreshButton.addEventListener("click", () => loadImages({ reset: true, targetCount: 100 }));
+  refreshButton.addEventListener("click", () => {
+    lastRequestUsedFallback = false;
+    loadImages({ reset: true, targetCount: 100 });
+  });
   if (sourceSelect) sourceSelect.addEventListener("change", () => loadImages({ reset: true, targetCount: 100 }));
   if (providerStatusRefresh) providerStatusRefresh.addEventListener("click", checkProviderStatus);
   retryButton.addEventListener("click", () => loadImages({ reset: imageCount() === 0, targetCount: imageCount() === 0 ? 100 : 20 }));
@@ -605,7 +706,8 @@
           autoLoadArmed = true;
           continue;
         }
-        if (autoLoadArmed && !loading && currentRoute === "gallery" && lastBatchAdded > 0) {
+        if (autoLoadArmed && !loading && pendingImageCount() === 0 &&
+            currentRoute === "gallery" && lastBatchAdded > 0) {
           autoLoadArmed = false;
           loadImages({ targetCount: 20 });
         }
@@ -613,10 +715,11 @@
     }, { root: null, rootMargin: "700px 0px", threshold: 0 });
     scrollObserver.observe(moreButton);
   } else {
-    // Fallback for older browsers without IntersectionObserver.
+    // Fallback for browsers without IntersectionObserver.
     let scrollCheckPending = false;
     window.addEventListener("scroll", () => {
-      if (scrollCheckPending || loading || currentRoute !== "gallery" || lastBatchAdded <= 0) return;
+      if (scrollCheckPending || loading || pendingImageCount() > 0 ||
+          currentRoute !== "gallery" || lastBatchAdded <= 0) return;
       scrollCheckPending = true;
       requestAnimationFrame(() => {
         scrollCheckPending = false;
@@ -627,5 +730,6 @@
   }
 
   const initialRoute = "gallery";
-  renderRoute(initialRoute, { replace: true });
+  history.replaceState({ ...(history.state || {}), view: "gallery" }, "", window.location.href);
+  renderRoute(initialRoute);
 })();
