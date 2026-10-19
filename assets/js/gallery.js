@@ -41,7 +41,11 @@
     return prefix + "/api/gallery" + query;
   }
 
-  // Stable masonry lanes: adding a later image never rebalances existing cards.
+  // Completed images use stable masonry lanes; pending image cards stay in a separate strip below.
+  const loadingGrid = document.createElement("div");
+  loadingGrid.className = "gallery-grid gallery-loading-grid";
+  loadingGrid.setAttribute("aria-hidden", "true");
+  if (grid) grid.insertAdjacentElement("afterend", loadingGrid);
   let galleryLanes = [];
   let galleryGeneration = 0;
 
@@ -57,7 +61,7 @@
   }
 
   function pendingImageCount() {
-    return grid.querySelectorAll(".gallery-item--pending").length;
+    return loadingGrid.querySelectorAll(".gallery-item--pending").length;
   }
 
   function setGalleryLaneCount(value) {
@@ -74,6 +78,11 @@
     // Rebalance all content, including loading cards and skeletons, only when
     // the user changes column count or the responsive breakpoint changes.
     existingItems.forEach((item) => getShortestGalleryLane().append(item));
+    if (value === "auto" || !["2", "3", "4", "5"].includes(value)) {
+      loadingGrid.style.removeProperty("--gallery-columns");
+    } else {
+      loadingGrid.style.setProperty("--gallery-columns", value);
+    }
   }
 
   // Custom theme-matched dropdowns; native selects remain as the state bridge.
@@ -459,17 +468,16 @@
   function setLoading(value) {
     loading = value;
     if (value) {
-      grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
-      // Keep a generous number of placeholders and distribute each into the
-      // currently shortest lane so loading never forms a detached bottom row.
+      loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+      // Loading-only cards remain below the completed gallery while image requests settle.
       for (let i = 0; i < 12; i++) {
         const skeleton = document.createElement("div");
         skeleton.className = "gallery-skeleton-placeholder";
         skeleton.setAttribute("aria-hidden", "true");
-        getShortestGalleryLane().append(skeleton);
+        loadingGrid.append(skeleton);
       }
     } else {
-      grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+      loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
     }
     refreshButton.disabled = value;
     moreButton.disabled = value;
@@ -567,7 +575,7 @@
     img.alt = "插画";
     img.className = "is-loading";
     card.append(img);
-    getShortestGalleryLane().append(card);
+    loadingGrid.append(card);
     if (batch) {
       batch.added++;
       batch.pending++;
@@ -616,11 +624,11 @@
       settled = true;
       clearLoadTimer();
 
-      // The card already occupies its masonry lane while loading; reveal it in
-      // place after decoding so loaded cards and placeholders stay column-aligned.
+      // Move the finished image above the loading strip into the shortest masonry lane.
       img.classList.remove("is-loading");
       card.classList.remove("gallery-item--pending");
       card.classList.add("gallery-item--loaded");
+      getShortestGalleryLane().append(card);
       empty.hidden = true;
       settleImageBatch(batch, true);
     }, { once: true });
@@ -652,6 +660,7 @@
       galleryGeneration++;
       grid.querySelectorAll(".gallery-item").forEach((card) => card.remove());
       grid.querySelectorAll(".gallery-skeleton-placeholder, .gallery-item--pending").forEach((item) => item.remove());
+      loadingGrid.replaceChildren();
       seen.clear();
       lastRequestUsedFallback = false;
     }
