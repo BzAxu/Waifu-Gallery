@@ -709,10 +709,27 @@
   });
 
   const TAG_CATEGORIES = {
-    hair: [["black_hair","黑发"],["white_hair","白发"],["blonde_hair","金发"],["brown_hair","棕发"],["blue_hair","蓝发"],["pink_hair","粉发"],["red_hair","红发"],["purple_hair","紫发"],["green_hair","绿发"],["silver_hair","银发"]],
-    features: [["neko","猫系角色"],["cat_ears","猫耳"],["animal_ears","兽耳"],["elf","精灵"],["wings","翅膀"],["tail","尾巴"],["horns","角"],["glasses","眼镜"],["twintails","双马尾"],["ponytail","马尾"]],
-    clothes: [["school_uniform","校服"],["maid","女仆装"],["kimono","和服"],["dress","礼服"],["armor","铠甲"],["hoodie","连帽衫"],["gothic","哥特风"],["casual","日常服"]],
-    scene: [["outdoors","户外"],["sky","天空"],["night","夜景"],["flowers","花朵"],["stars","星空"],["fantasy","幻想风"],["city","城市"],["water","水景"],["landscape","风景"],["weapon","武器"]]
+    hair: [
+      ["black_hair","黑发"],["white_hair","白发"],["blonde_hair","金发"],["brown_hair","棕发"],["blue_hair","蓝发"],["pink_hair","粉发"],["red_hair","红发"],["purple_hair","紫发"],["green_hair","绿发"],["silver_hair","银发"],["grey_hair","灰发"],["orange_hair","橙发"],["multicolored_hair","多色头发"],["gradient_hair","渐变发色"],["long_hair","长发"],["short_hair","短发"],["very_long_hair","超长发"],["twintails","双马尾"],["ponytail","马尾"],["braid","辫子"],["ahoge","呆毛"],["bangs","刘海"],["hair_bun","丸子头"],["side_ponytail","侧马尾"],["curly_hair","卷发"]
+    ],
+    eyes: [
+      ["blue_eyes","蓝眼"],["red_eyes","红眼"],["green_eyes","绿眼"],["brown_eyes","棕眼"],["purple_eyes","紫眼"],["yellow_eyes","黄眼"],["pink_eyes","粉眼"],["golden_eyes","金色眼睛"],["heterochromia","异色瞳"],["closed_eyes","闭眼"],["one_eye_closed","单眼闭合"],["glowing_eyes","发光眼睛"],["eyepatch","眼罩"],["glasses","眼镜"],["sunglasses","太阳镜"]
+    ],
+    features: [
+      ["neko","猫系角色"],["cat_ears","猫耳"],["animal_ears","兽耳"],["fox_ears","狐耳"],["rabbit_ears","兔耳"],["wolf_ears","狼耳"],["elf","精灵"],["pointy_ears","尖耳"],["wings","翅膀"],["black_wings","黑色翅膀"],["white_wings","白色翅膀"],["tail","尾巴"],["fox_tail","狐尾"],["horns","角"],["halo","光环"],["fangs","尖牙"],["fang","小虎牙"],["freckles","雀斑"],["beauty_mark","美人痣"],["animal_tail","动物尾巴"],["robot","机械角色"],["android","仿生人"],["vampire","吸血鬼"],["demon","恶魔"],["angel","天使"],["princess","公主"],["witch","魔女"],["magical_girl","魔法少女"]
+    ],
+    clothes: [
+      ["school_uniform","校服"],["sailor_uniform","水手服"],["serafuku","日式水手服"],["maid","女仆装"],["maid_headdress","女仆头饰"],["kimono","和服"],["yukata","浴衣"],["dress","连衣裙"],["gown","礼服"],["armor","铠甲"],["hoodie","连帽衫"],["sweater","毛衣"],["jacket","夹克"],["coat","外套"],["shirt","衬衫"],["t_shirt","T恤"],["skirt","裙子"],["pleated_skirt","百褶裙"],["shorts","短裤"],["jeans","牛仔裤"],["sundress","夏日裙装"],["gothic","哥特风"],["gothic_lolita","哥特萝莉"],["lolita_fashion","洛丽塔"],["uniform","制服"],["nurse","护士装"],["sportswear","运动服"],["swimsuit","泳装"],["winter_clothes","冬装"],["casual","日常服"],["ribbon","蝴蝶结"],["necktie","领带"],["bowtie","领结"],["gloves","手套"],["thighhighs","过膝袜"],["stockings","长筒袜"],["boots","靴子"],["sneakers","运动鞋"],["hat","帽子"],["crown","王冠"]
+    ],
+    pose: [
+      ["sitting","坐姿"],["standing","站姿"],["lying","躺姿"],["kneeling","跪姿"],["walking","行走"],["running","奔跑"],["jumping","跳跃"],["looking_at_viewer","看向镜头"],["looking_away","望向别处"],["smile","微笑"],["blush","脸红"],["waving","挥手"],["peace_sign","剪刀手"],["arms_up","举起双手"],["crossed_arms","双臂交叉"],["hand_on_cheek","手托脸颊"],["holding","手持物品"],["hug","拥抱"],["back_view","背影"],["profile","侧脸"],["from_above","俯视角度"],["from_below","仰视角度"],["close-up","近景"],["portrait","肖像"],["full_body","全身"]
+    ],
+    scene: [
+      ["outdoors","户外"],["indoors","室内"],["sky","天空"],["clouds","云朵"],["night","夜景"],["starry_sky","星空"],["flowers","花朵"],["cherry_blossoms","樱花"],["forest","森林"],["garden","花园"],["beach","海滩"],["ocean","海洋"],["waterfall","瀑布"],["rain","雨景"],["snow","雪景"],["sunset","日落"],["sunrise","日出"],["city","城市"],["street","街道"],["cafe","咖啡馆"],["bedroom","卧室"],["classroom","教室"],["library","图书馆"],["train","列车"],["landscape","风景"],["fantasy","幻想风"],["magic","魔法"],["sparkles","闪光特效"],["fireworks","烟花"],["moon","月亮"],["water","水景"],["window","窗边"],["ruins","遗迹"],["shrine","神社"],["temple","寺庙"]
+    ],
+    special: [
+      ["original","原创角色"],["fanart","同人作品"],["multiple_girls","多名角色"],["1girl","单人角色"],["2girls","两名角色"],["solo","单人画面"],["chibi","Q版"],["anime_coloring","动画风上色"],["monochrome","黑白画面"],["sketch","草稿风"],["lineart","线稿"],["traditional_media","传统绘画"],["digital_art","数字绘画"],["pixel_art","像素风"],["watercolor","水彩风"],["oil_painting","油画风"],["3d","3D风格"],["realistic","写实风"],["abstract","抽象风"],["minimalism","极简风"],["cute","可爱风"],["kawaii","萌系"],["beautiful","唯美"],["detailed","细节丰富"],["highres","高清"],["absurdres","超高分辨率"],["official_art","官方绘图"],["cover","封面图"],["wallpaper","壁纸"],["transparent_background","透明背景"],["simple_background","简洁背景"],["white_background","白色背景"],["black_background","黑色背景"],["weapon","武器"],["book","书本"],["food","食物"],["music","音乐元素"],["animal","动物"],["bird","鸟类"],["butterfly","蝴蝶"],["flower","单朵花"],["heart","爱心"],["stars","星星装饰"],["jewelry","首饰"],["umbrella","雨伞"],["phone","手机"],["camera","相机"],["sword","剑"],["staff","法杖"],["ribbon","丝带"]
+    ]
   };
   let activeTagCategory = "hair";
   let selectedTags = [];
@@ -733,6 +750,7 @@
       chip.append(name, remove); tagSelected.append(chip);
     });
     if (tagConfirmButton) tagConfirmButton.textContent = selectedTags.length ? "应用筛选（" + selectedTags.length + "）" : "清除筛选";
+    if (tagSelected) tagSelected.dataset.count = String(selectedTags.length);
   }
   function renderTagOptions() {
     if (!tagOptions) return;
@@ -758,12 +776,13 @@
       ? "当前图片源不支持标签筛选，请在画廊设置中切换到自动模式、Nekos API 或 Safebooru。"
       : sourceSelect && sourceSelect.value === "safebooru" ? "Safebooru 将使用安全评级（safe）进行筛选。"
       : sourceSelect && sourceSelect.value === "nekosapi" ? "Nekos API 将使用安全评级（safe）进行筛选。"
-      : "自动模式只会查询支持标签的图片源。标签组合采用同时匹配规则。";
+      : "自动模式只会查询支持标签的图片源。标签越多，筛选条件越严格。";
   }
   function openTagDialog() {
     if (!tagDialog) return;
     syncSelectedTagsFromInput(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
     tagDialog.hidden = false; document.body.classList.add("gallery-tags-open");
+    tagDialog.classList.remove("is-closing"); tagDialog.classList.add("is-opening");
     const closeButton = tagDialog.querySelector(".gallery-tag-close"); if (closeButton) closeButton.focus();
   }
   function closeTagDialog() {
