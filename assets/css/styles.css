@@ -2122,3 +2122,78 @@ body.gallery-sidebar-open { overflow:hidden; }
   .gallery-loading-grid .gallery-item--pending::after,
   .gallery-loading-grid .gallery-skeleton-placeholder::after { animation: none !important; }
 }
+
+
+/* Keep loading placeholders in their own vertical lanes, aligned to the
+   completed masonry columns above. Pending cards remain fixed 3:4 portraits. */
+.gallery-loading-grid {
+  display: grid !important;
+  grid-template-columns: repeat(var(--gallery-columns, 3), minmax(0, 1fr)) !important;
+  align-items: start;
+  column-gap: 15px;
+  row-gap: 0;
+  margin-top: 14px;
+}
+.gallery-loading-grid[hidden] {
+  display: none !important;
+}
+.gallery-loading-column {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 15px;
+  min-width: 0;
+}
+.gallery-loading-column > .gallery-item--pending,
+.gallery-loading-column > .gallery-skeleton-placeholder {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 3 / 4;
+  margin: 0 !important;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(190,197,255,.12) !important;
+  border-radius: 15px;
+  background: linear-gradient(110deg, rgba(255,255,255,.025) 8%, rgba(169,155,255,.11) 18%, rgba(138,201,255,.07) 33%, rgba(255,255,255,.025) 48%) !important;
+  background-size: 220% 100% !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+  animation: none !important;
+}
+.gallery-loading-column > .gallery-item--pending > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  visibility: hidden !important;
+}
+.gallery-loading-column > .gallery-item--pending::after,
+.gallery-loading-column > .gallery-skeleton-placeholder::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.055) 45%, transparent 70%);
+  transform: translateX(-100%);
+  animation: galleryLoadingShimmer 1.45s ease-in-out infinite;
+}
+@media (max-width: 760px) {
+  .gallery-loading-grid { column-gap: 11px; }
+  .gallery-loading-column { gap: 11px; }
+}
+@media (max-width: 520px) {
+  .gallery-loading-grid { column-gap: 9px; }
+  .gallery-loading-column { gap: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gallery-loading-column > .gallery-item--pending::after,
+  .gallery-loading-column > .gallery-skeleton-placeholder::after {
+    animation: none !important;
+  }
+}
