@@ -45,12 +45,15 @@
     return prefix + "/api/gallery" + query;
   }
 
-  // CSS multi-column masonry packs cards tightly without empty staircase gaps.
+  // Stable masonry lanes: adding a later image never rebalances existing cards.
+  let galleryLanes = [];
   let galleryGeneration = 0;
 
   function getShortestGalleryLane() {
-    // Kept as a helper for the existing image-loading flow; CSS columns handle placement.
-    return grid;
+    if (!galleryLanes.length) setGalleryLaneCount("auto");
+    return galleryLanes.reduce((shortest, current) =>
+      current.getBoundingClientRect().height < shortest.getBoundingClientRect().height ? current : shortest,
+      galleryLanes[0]);
   }
 
   function imageCount() {
@@ -65,8 +68,16 @@
     const count = ["2", "3", "4", "5"].includes(value)
       ? Number(value)
       : (window.matchMedia("(max-width: 760px)").matches ? 2 : 3);
-    grid.style.setProperty("--gallery-columns", String(count));
-    loadingGrid.style.setProperty("--gallery-columns", String(count));
+    const existingCards = [...grid.querySelectorAll(".gallery-item")];
+    galleryLanes = Array.from({ length: count }, () => {
+      const lane = document.createElement("div");
+      lane.className = "gallery-column";
+      return lane;
+    });
+    grid.replaceChildren(...galleryLanes);
+    // Existing cards are only rebalanced when the user changes column count
+    // or the automatic responsive breakpoint changes.
+    existingCards.forEach((card) => getShortestGalleryLane().append(card));
   }
 
   // Custom theme-matched dropdowns; native selects remain as the state bridge.
