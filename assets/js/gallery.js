@@ -244,7 +244,13 @@
       if (!wrapper.contains(event.target)) close();
     });
     trigger.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") close();
+      if (event.key === "Escape" && !menu.hidden) {
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+        trigger.focus();
+        return;
+      }
       if (event.key === "ArrowDown" && menu.hidden) {
         event.preventDefault();
         trigger.click();
@@ -254,7 +260,12 @@
     });
     menu.addEventListener("keydown", (event) => {
       const current = options.findIndex(({ item }) => item === document.activeElement);
-      if (event.key === "Escape") { event.preventDefault(); close(); trigger.focus(); }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+        trigger.focus();
+      }
       else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
         const next = (current + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
@@ -335,7 +346,7 @@
       void dialog.offsetWidth;
       dialog.classList.add("is-opening");
       const onOpenEnd = (event) => {
-        if (event.target !== panel || event.animationName !== "galleryDialogPanelIn") return;
+        if (event.target !== panel || !event.animationName.startsWith("galleryDialogPanelIn")) return;
         dialog.classList.remove("is-opening");
         dialog.removeEventListener("animationend", onOpenEnd);
       };
@@ -378,7 +389,7 @@
       finishImmediately();
     };
     const onAnimationEnd = (event) => {
-      if (event.target === panel && event.animationName === "galleryDialogPanelOut") finish();
+      if (event.target === panel && event.animationName.startsWith("galleryDialogPanelOut")) finish();
     };
     dialog.addEventListener("animationend", onAnimationEnd);
     timer = window.setTimeout(finish, 420);
@@ -393,16 +404,55 @@
   const sidebarCloseButton = document.getElementById("gallerySidebarClose");
   const sidebarTagsButton = document.getElementById("gallerySidebarTags");
   const sidebarSettingsButton = document.getElementById("gallerySidebarSettings");
+
+  // Modal priority follows the intended visual stack: preview > tag picker > settings.
+  function getTopmostOpenDialog() {
+    return [lightbox, tagDialog, settingsDialog].find((dialog) =>
+      dialog && !dialog.hidden && !dialog.classList.contains("is-closing")
+    ) || null;
+  }
+  function getDialogFocusable(dialog) {
+    return [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((element) =>
+        !element.hidden &&
+        !element.closest("[hidden], [inert]") &&
+        !element.classList.contains("gallery-native-select") &&
+        !element.matches(".gallery-tag-backdrop, .gallery-settings-backdrop, .gallery-lightbox-backdrop") &&
+        element.getClientRects().length > 0 &&
+        window.getComputedStyle(element).visibility !== "hidden"
+      );
+  }
+  function trapDialogTab(event, dialog) {
+    if (event.key !== "Tab" || getTopmostOpenDialog() !== dialog) return;
+    const controls = getDialogFocusable(dialog);
+    if (!controls.length) {
+      event.preventDefault();
+      return;
+    }
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  let sidebarOpenFrame = 0;
   let sidebarReturnFocus = null;
   function openSidebar() {
-    if (!sidebar || !sidebarBackdrop) return;
+    if (!sidebar || !sidebarBackdrop || sidebar.classList.contains("is-open")) return;
     sidebarReturnFocus = document.activeElement;
     sidebarBackdrop.hidden = false;
     sidebar.inert = false;
     sidebar.setAttribute("aria-hidden", "false");
     settingsOpen?.setAttribute("aria-expanded", "true");
     document.body.classList.add("gallery-sidebar-open");
-    requestAnimationFrame(() => {
+    if (sidebarOpenFrame) cancelAnimationFrame(sidebarOpenFrame);
+    sidebarOpenFrame = requestAnimationFrame(() => {
+      sidebarOpenFrame = 0;
+      if (sidebarBackdrop.hidden || !document.body.classList.contains("gallery-sidebar-open")) return;
       sidebar.classList.add("is-open");
       sidebarBackdrop.classList.add("is-open");
       sidebarCloseButton?.focus({ preventScroll: true });
@@ -410,6 +460,10 @@
   }
   function closeSidebar({ restoreFocus = true } = {}) {
     if (!sidebar || !sidebarBackdrop || sidebarBackdrop.hidden) return;
+    if (sidebarOpenFrame) {
+      cancelAnimationFrame(sidebarOpenFrame);
+      sidebarOpenFrame = 0;
+    }
     sidebar.classList.remove("is-open");
     sidebarBackdrop.classList.remove("is-open");
     sidebar.inert = true;
@@ -427,7 +481,7 @@
   sidebarTagsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); settingsOpen?.focus({ preventScroll: true }); openTagDialog(); });
   sidebarSettingsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); settingsOpen?.focus({ preventScroll: true }); openSettings(); });
   document.addEventListener("keydown", (event) => {
-    if (!sidebar || sidebarBackdrop?.hidden) return;
+    if (!sidebar || sidebarBackdrop?.hidden || !sidebar.classList.contains("is-open") || getTopmostOpenDialog()) return;
     if (event.key === "Escape") {
       event.preventDefault();
       closeSidebar();
@@ -465,16 +519,12 @@
   if (settingsDialog) {
     settingsDialog.querySelectorAll("[data-gallery-settings-close]").forEach((button) => button.addEventListener("click", closeSettings));
     document.addEventListener("keydown", (event) => {
-      if (settingsDialog.hidden) return;
+      if (settingsDialog.hidden || getTopmostOpenDialog() !== settingsDialog) return;
       if (event.key === "Escape") {
         event.preventDefault();
         closeSettings();
-      } else if (event.key === "Tab") {
-        const controls = [...settingsDialog.querySelectorAll("button, select")].filter((el) => !el.disabled);
-        if (!controls.length) return;
-        const first = controls[0], last = controls[controls.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      } else {
+        trapDialogTab(event, settingsDialog);
       }
     });
   }
@@ -982,8 +1032,16 @@
   }
   lightbox.querySelectorAll("[data-gallery-close]").forEach((button) => button.addEventListener("click", () => closeLightbox()));
   document.addEventListener("keydown", (event) => {
-    if (lightbox.hidden) return;
-    if (event.key === "Escape") closeLightbox();
+    if (lightbox.hidden || getTopmostOpenDialog() !== lightbox) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeLightbox();
+      return;
+    }
+    if (event.key === "Tab") {
+      trapDialogTab(event, lightbox);
+      return;
+    }
     if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
       const cards = [...grid.querySelectorAll(".gallery-item")];
       const index = cards.indexOf(lightboxTrigger);
@@ -1031,46 +1089,100 @@
     selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean);
   }
   function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
+  // Reconcile selected chips in place. Replacing every child on each click
+  // restarted CSS animations on all chips and caused the selected area to flash.
   function renderSelectedTags() {
     if (!tagSelected) return;
-    tagSelected.replaceChildren();
-    if (!selectedTags.length) {
-      const emptyTag = document.createElement("span"); emptyTag.className = "gallery-tag-none"; emptyTag.textContent = "还没有选择标签"; tagSelected.append(emptyTag);
-    } else selectedTags.forEach((tag) => {
-      const chip = document.createElement("span"); chip.className = "gallery-tag-selected-chip";
-      const name = document.createElement("span"); name.textContent = tagLabel(tag);
-      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×"; remove.setAttribute("aria-label", "移除 " + name.textContent);
-      remove.addEventListener("click", () => { selectedTags = selectedTags.filter((item) => item !== tag); renderTagOptions(); renderSelectedTags(); });
-      chip.append(name, remove); tagSelected.append(chip);
+    const active = new Set(selectedTags);
+    tagSelected.querySelectorAll(".gallery-tag-selected-chip").forEach((chip) => {
+      if (!active.has(chip.dataset.tag)) chip.remove();
     });
+    let emptyTag = tagSelected.querySelector(".gallery-tag-none");
+    if (!selectedTags.length) {
+      if (!emptyTag) {
+        emptyTag = document.createElement("span");
+        emptyTag.className = "gallery-tag-none";
+        emptyTag.textContent = "还没有选择标签";
+        tagSelected.append(emptyTag);
+      }
+    } else {
+      emptyTag?.remove();
+      selectedTags.forEach((tag) => {
+        if (tagSelected.querySelector('[data-tag="' + CSS.escape(tag) + '"].gallery-tag-selected-chip')) return;
+        const chip = document.createElement("span");
+        chip.className = "gallery-tag-selected-chip";
+        chip.dataset.tag = tag;
+        const name = document.createElement("span");
+        name.textContent = tagLabel(tag);
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", "移除 " + name.textContent);
+        remove.addEventListener("click", () => {
+          selectedTags = selectedTags.filter((item) => item !== tag);
+          syncTagOptionStates();
+          renderSelectedTags();
+          updateTagDialogHint();
+        });
+        chip.append(name, remove);
+        tagSelected.append(chip);
+      });
+    }
     if (tagConfirmButton) tagConfirmButton.textContent = selectedTags.length ? "应用筛选（" + selectedTags.length + "）" : "清除筛选";
-    if (tagSelected) tagSelected.dataset.count = String(selectedTags.length);
+    tagSelected.dataset.count = String(selectedTags.length);
   }
-  function renderTagOptions() {
+
+  function syncTagOptionStates() {
+    if (!tagOptions) return;
+    tagOptions.querySelectorAll(".gallery-tag-option").forEach((button) => {
+      const selected = selectedTags.includes(button.dataset.tag);
+      button.classList.toggle("is-selected", selected);
+      button.setAttribute("aria-pressed", String(selected));
+      const mark = button.querySelector(".gallery-tag-option-mark");
+      if (mark) mark.textContent = selected ? "✓" : "+";
+    });
+  }
+
+  // Rebuild the option grid only when changing categories/opening the dialog.
+  // Toggling one tag updates the existing button in place, without replaying
+  // entrance animations across the entire list.
+  function renderTagOptions({ animate = false } = {}) {
     if (!tagOptions) return;
     tagOptions.classList.remove("tag-options-enter");
-    if (tagOptionsAnimationTimer) window.clearTimeout(tagOptionsAnimationTimer);
+    if (tagOptionsAnimationTimer) {
+      window.clearTimeout(tagOptionsAnimationTimer);
+      tagOptionsAnimationTimer = 0;
+    }
     tagOptions.replaceChildren();
     (TAG_CATEGORIES[activeTagCategory] || []).forEach(([tag, label]) => {
-      const button = document.createElement("button"); button.type = "button";
+      const button = document.createElement("button");
+      button.type = "button";
       button.className = "gallery-tag-option" + (selectedTags.includes(tag) ? " is-selected" : "");
+      button.dataset.tag = tag;
       button.setAttribute("aria-pressed", String(selectedTags.includes(tag)));
-      const mark = document.createElement("span"); mark.className = "gallery-tag-option-mark"; mark.textContent = selectedTags.includes(tag) ? "✓" : "+";
-      const text = document.createElement("span"); text.textContent = label; button.append(mark, text);
+      const mark = document.createElement("span");
+      mark.className = "gallery-tag-option-mark";
+      mark.textContent = selectedTags.includes(tag) ? "✓" : "+";
+      const text = document.createElement("span");
+      text.textContent = label;
+      button.append(mark, text);
       button.addEventListener("click", () => {
         if (selectedTags.includes(tag)) selectedTags = selectedTags.filter((item) => item !== tag);
         else selectedTags.push(tag);
-        renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
+        syncTagOptionStates();
+        renderSelectedTags();
+        updateTagDialogHint();
       });
       tagOptions.append(button);
     });
-    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (animate && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       void tagOptions.offsetWidth;
       tagOptions.classList.add("tag-options-enter");
+      // CSS uses a 440ms cascade plus up to 85ms of staggered delay.
       tagOptionsAnimationTimer = window.setTimeout(() => {
         tagOptions.classList.remove("tag-options-enter");
         tagOptionsAnimationTimer = 0;
-      }, 320);
+      }, 560);
     }
   }
   function updateTagDialogHint() {
@@ -1099,14 +1211,27 @@
   if (tagSettingsOpen) tagSettingsOpen.addEventListener("click", openTagDialog);
   if (tagDialog) {
     tagDialog.querySelectorAll("[data-gallery-tag-close]").forEach((button) => button.addEventListener("click", closeTagDialog));
-    document.addEventListener("keydown", (event) => { if (!tagDialog.hidden && event.key === "Escape") { event.preventDefault(); closeTagDialog(); } });
+    document.addEventListener("keydown", (event) => {
+      if (tagDialog.hidden || getTopmostOpenDialog() !== tagDialog) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeTagDialog();
+      } else {
+        trapDialogTab(event, tagDialog);
+      }
+    });
   }
   if (tagCategoryTabs) tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((button) => button.addEventListener("click", () => {
     activeTagCategory = button.dataset.tagCategory;
     tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((tab) => { const active = tab === button; tab.classList.toggle("is-active", active); tab.setAttribute("aria-selected", String(active)); });
-    renderTagOptions();
+    renderTagOptions({ animate: true });
   }));
-  if (tagClearButton) tagClearButton.addEventListener("click", () => { selectedTags = []; renderTagOptions(); renderSelectedTags(); });
+  if (tagClearButton) tagClearButton.addEventListener("click", () => {
+    selectedTags = [];
+    syncTagOptionStates();
+    renderSelectedTags();
+    updateTagDialogHint();
+  });
   if (tagConfirmButton) tagConfirmButton.addEventListener("click", () => {
     if (tagInput) tagInput.value = selectedTags.join(",");
     if (tagHint) tagHint.textContent = selectedTags.length ? "当前标签：" + selectedTags.map(tagLabel).join("、") : "尚未选择标签。可按类别打开标签选择器。";
