@@ -711,9 +711,9 @@
         ? (sourceSelect && sourceSelect.value === "auto"
           ? "自动模式只会查询支持标签的接口；多个标签用逗号分隔，最多 5 个。"
           : sourceSelect && sourceSelect.value === "safebooru"
-            ? "Danbooru 标签使用下划线格式，例如 brown_hair；默认限制为 G 级图片。"
+            ? "Safebooru 标签使用下划线格式，例如 brown_hair；默认限制为 safe 评级。"
             : "Nekos API 支持标签组合查询，默认限制为 safe 评级；多个标签用逗号分隔。")
-        : "当前图片源不支持标签筛选。切换到自动模式、Nekos API 或 Danbooru 即可使用。";
+        : "当前图片源不支持标签筛选。切换到自动模式、Nekos API 或 Safebooru 即可使用。";
     }
   }
   refreshButton.addEventListener("click", () => {
