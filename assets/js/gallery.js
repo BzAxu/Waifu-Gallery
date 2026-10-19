@@ -717,7 +717,7 @@
   let activeTagCategory = "hair";
   let selectedTags = [];
   function syncSelectedTagsFromInput() {
-    selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean).slice(0, 5);
+    selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean).slice(0, 5);
   }
   function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
   function renderSelectedTags() {
