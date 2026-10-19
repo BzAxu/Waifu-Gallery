@@ -576,6 +576,9 @@
 
   function refreshAutoLoadAfterImages() {
     if (loading || pendingImageCount() > 0) return;
+    // A short batch must be refilled before the viewport auto-loader can
+    // start an unrelated "load more" batch.
+    if (latestImageBatch && latestImageBatch.refillScheduled) return;
     if (latestImageBatch && latestImageBatch.requestFinished) {
       lastBatchAdded = latestImageBatch.loaded;
     }
@@ -595,6 +598,28 @@
     }
   }
 
+  function scheduleShortBatchRefill(batch) {
+    if (!batch || batch.generation !== galleryGeneration ||
+        !batch.requestFinished || batch.pending > 0 || loading ||
+        batch.refillScheduled || imageCount() >= batch.targetTotal) return;
+    if (batch.refillAttempts >= 3) {
+      status.textContent = "已显示 " + imageCount() + " 张；部分图片加载失败，可重试补齐";
+      return;
+    }
+
+    batch.refillScheduled = true;
+    const deficit = batch.targetTotal - imageCount();
+    window.setTimeout(() => {
+      if (batch.generation !== galleryGeneration ||
+          latestImageBatch !== batch ||
+          imageCount() >= batch.targetTotal) return;
+      loadImages({
+        targetCount: batch.targetTotal - imageCount(),
+        replacementAttempts: batch.refillAttempts + 1
+      });
+    }, 0);
+  }
+
   function settleImageBatch(batch, loaded) {
     if (batch) {
       batch.pending = Math.max(0, batch.pending - 1);
@@ -609,6 +634,7 @@
     if (!imageCount() && !pendingImageCount() && !loading) {
       showNoImagesState();
     }
+    scheduleShortBatchRefill(batch);
     refreshAutoLoadAfterImages();
   }
 
@@ -730,7 +756,7 @@
     return true;
   }
 
-  async function loadImages({ reset = false, targetCount = 20 } = {}) {
+  async function loadImages({ reset = false, targetCount = 20, replacementAttempts = 0 } = {}) {
     if (loading) return;
     if (reset) {
       galleryGeneration++;
@@ -744,6 +770,9 @@
     const batch = {
       id: ++imageBatchSequence,
       generation: galleryGeneration,
+      targetTotal,
+      replacementAttempts,
+      refillScheduled: false,
       added: 0,
       pending: 0,
       loaded: 0,
@@ -805,8 +834,9 @@
         showNoImagesState("没有可显示的图片。请切换图片源、检查网络或重试。");
       }
       updateGalleryStatus();
-      // Re-arm only after pending image requests settle. Only real image loads
-      // count as a successful batch, preventing repeated retries of broken URLs.
+      // A batch is not considered filled until images actually load. Re-request
+      // only the missing count, with a bounded retry budget to avoid API loops.
+      scheduleShortBatchRefill(batch);
       refreshAutoLoadAfterImages();
     }
   }
