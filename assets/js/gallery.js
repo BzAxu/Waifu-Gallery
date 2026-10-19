@@ -452,7 +452,7 @@
     return [lightbox, tagDialog, settingsDialog].find((dialog) => dialog && !dialog.hidden) || null;
   }
   function getDialogFocusable(dialog) {
-    return [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    return [...dialog.querySelectorAll('a[href], summary, button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
       .filter((element) =>
         !element.hidden &&
         !element.closest("[hidden], [inert]") &&
@@ -1251,6 +1251,11 @@
   }
   function openTagDialog() {
     if (!tagDialog) return;
+    if (loading) return;
+    if (!tagFilteringAvailable()) {
+      showToast("当前图片源不支持标签筛选，请先切换图片源");
+      return;
+    }
     tagDialogTrigger = document.activeElement;
     syncSelectedTagsFromInput(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
     openAnimatedDialog(tagDialog, "gallery-tags-open");
@@ -1304,6 +1309,12 @@
     if (tagInput) tagInput.disabled = unavailable;
     if (tagApplyButton) tagApplyButton.disabled = unavailable;
     if (tagSettingsOpen) tagSettingsOpen.disabled = unavailable;
+    if (sidebarTagsButton) {
+      sidebarTagsButton.disabled = unavailable;
+      sidebarTagsButton.title = !available
+        ? "当前图片源不支持标签筛选，请到画廊设置切换图片源"
+        : "";
+    }
     if (tagConfirmButton) tagConfirmButton.disabled = unavailable;
     if (tagClearButton) tagClearButton.disabled = loading;
     if (tagCategoryTabs) {
