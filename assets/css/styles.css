@@ -1574,8 +1574,13 @@ body.gallery-tags-open { overflow:hidden; }
   animation: none !important;
   background-size: 100% 100% !important;
 }
-.gallery-loading-grid .gallery-item--pending::after,
+/* Actual image placeholders stay static; only the small skeleton set gets a moving sheen. */
+.gallery-loading-grid .gallery-item--pending::after {
+  animation: none !important;
+  will-change: auto;
+}
 .gallery-loading-grid .gallery-skeleton-placeholder::after {
+  animation: galleryLoadingShimmer 1.45s ease-in-out infinite;
   will-change: transform;
 }
 
