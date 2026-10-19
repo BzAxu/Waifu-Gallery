@@ -230,7 +230,7 @@
         history[replace ? "replaceState" : "pushState"]({ view: currentRoute }, "", url);
       }
     });
-    if (currentRoute === "gallery" && !grid.children.length && !loading) loadImages({ reset: true });
+    if (currentRoute === "gallery" && !grid.children.length && !loading) loadImages({ reset: true, targetCount: 100 });
     if (currentRoute === "gallery") checkProviderStatus();
   }
 
@@ -329,7 +329,7 @@
     return true;
   }
 
-  async function loadImages({ reset = false } = {}) {
+  async function loadImages({ reset = false, targetCount = 20 } = {}) {
     if (loading) return;
     let added = 0;
     if (reset) {
@@ -337,26 +337,49 @@
       loadingGrid.replaceChildren();
       seen.clear();
     }
+    const targetTotal = grid.children.length + loadingGrid.children.length + Math.max(0, targetCount);
     setLoading(true);
     try {
       const source = sourceSelect ? sourceSelect.value : "auto";
-      const response = await fetch("/api/gallery?source=" + encodeURIComponent(source) + "&count=100", {
-        method: "GET",
-        headers: { "Accept": "application/json" },
-        cache: "no-store"
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || ("图片服务返回 HTTP " + response.status));
-      if (!Array.isArray(data.files)) throw new Error("图片服务返回的数据格式不正确");
-      currentSourceName = data.sourceName || "自动切换";
-      data.files.forEach((url) => { if (addImage(url, currentSourceName)) added++; });
-      if (!grid.children.length && !loadingGrid.children.length) throw new Error("暂时没有获取到图片，请稍后重试");
-      empty.hidden = true;
-      status.textContent = currentSourceName + " · 已显示 " + grid.children.length + " 张" +
-        (loadingGrid.children.length ? " · 另有 " + loadingGrid.children.length + " 张加载中" : "") +
-        " · API " + (Number.isFinite(data.latency) ? data.latency + " ms" : "响应正常");
-      if (data.fallback && Array.isArray(data.failures)) status.textContent += " · 已自动切换备用源";
-      if (!added) status.textContent += " · 本批没有新图，请再刷新";
+      let attempts = 0;
+      let lastLatency = null;
+      let usedFallback = false;
+      // Some public sources return only a small batch per request. Keep requesting
+      // until the requested number of usable cards is queued, without endless retries.
+      while (grid.children.length + loadingGrid.children.length < targetTotal && attempts < 10) {
+        attempts++;
+        const response = await fetch("/api/gallery?source=" + encodeURIComponent(source) + "&count=100", {
+          method: "GET",
+          headers: { "Accept": "application/json" },
+          cache: "no-store"
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || ("图片服务返回 HTTP " + response.status));
+        if (!Array.isArray(data.files)) throw new Error("图片服务返回的数据格式不正确");
+        let batchAdded = 0;
+        currentSourceName = data.sourceName || "自动切换";
+        lastLatency = Number.isFinite(data.latency) ? data.latency : null;
+        usedFallback = usedFallback || Boolean(data.fallback);
+        data.files.forEach((url) => {
+          if (addImage(url, currentSourceName)) {
+            batchAdded++;
+            added++;
+          }
+        });
+        if (!grid.children.length && !loadingGrid.children.length) {
+          throw new Error("暂时没有获取到图片，请稍后重试");
+        }
+        if (batchAdded === 0) break;
+      }
+      if (!grid.children.length && !loadingGrid.children.length) {
+        throw new Error("暂时没有获取到图片，请稍后重试");
+      }
+      const visibleCount = grid.children.length;
+      const pendingCount = loadingGrid.children.length;
+      status.textContent = currentSourceName + " · 已显示 " + visibleCount + " 张" +
+        (pendingCount ? " · 另有 " + pendingCount + " 张加载中" : "") +
+        " · API " + (lastLatency !== null ? lastLatency + " ms" : "响应正常") +
+        (usedFallback ? " · 已自动切换备用源" : "");
     } catch (error) {
       console.warn("Gallery request failed:", error);
       if (!grid.children.length && !loadingGrid.children.length) {
@@ -489,11 +512,11 @@
     }
   });
 
-  refreshButton.addEventListener("click", () => loadImages({ reset: true }));
-  if (sourceSelect) sourceSelect.addEventListener("change", () => loadImages({ reset: true }));
+  refreshButton.addEventListener("click", () => loadImages({ reset: true, targetCount: 100 }));
+  if (sourceSelect) sourceSelect.addEventListener("change", () => loadImages({ reset: true, targetCount: 100 }));
   if (providerStatusRefresh) providerStatusRefresh.addEventListener("click", checkProviderStatus);
-  retryButton.addEventListener("click", () => loadImages({ reset: grid.children.length === 0 }));
-  moreButton.addEventListener("click", () => loadImages());
+  retryButton.addEventListener("click", () => loadImages({ reset: grid.children.length === 0, targetCount: grid.children.length === 0 ? 100 : 20 }));
+  moreButton.addEventListener("click", () => loadImages({ targetCount: 20 }));
 
   // Infinite scroll: prefetch the next batch before the user reaches the bottom.
   // Re-arm only after the sentinel leaves the prefetch area; never spin on empty batches.
@@ -506,7 +529,7 @@
         }
         if (autoLoadArmed && !loading && currentRoute === "gallery" && lastBatchAdded > 0) {
           autoLoadArmed = false;
-          loadImages();
+          loadImages({ targetCount: 20 });
         }
       }
     }, { root: null, rootMargin: "700px 0px", threshold: 0 });
@@ -520,7 +543,7 @@
       requestAnimationFrame(() => {
         scrollCheckPending = false;
         const rect = moreButton.getBoundingClientRect();
-        if (rect.top < window.innerHeight + 700) loadImages();
+        if (rect.top < window.innerHeight + 700) loadImages({ targetCount: 20 });
       });
     }, { passive: true });
   }
