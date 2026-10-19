@@ -58,20 +58,23 @@ const PROVIDERS = [
   },
   {
     id: "safebooru",
-    name: "Danbooru",
-    kind: "G 级图片 · 标签筛选",
-    url: "https://safebooru.donmai.us/posts.json?tags=rating%3Ag&limit=20&order=random",
+    name: "Safebooru",
+    kind: "safe 图片 · 标签筛选",
+    url: "https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=rating%3Asafe&limit=20",
     headers: { "Accept": "application/json", "User-Agent": "Waifu-Gallery/1.0 (public safe image gallery)" },
     batchSize: 20,
     supportsTags: true,
     buildUrl: (tags) => {
-      const target = new URL("https://safebooru.donmai.us/posts.json");
-      target.searchParams.set("tags", ["rating:g", ...tags].join(" "));
+      const target = new URL("https://safebooru.org/index.php");
+      target.searchParams.set("page", "dapi");
+      target.searchParams.set("s", "post");
+      target.searchParams.set("q", "index");
+      target.searchParams.set("json", "1");
+      target.searchParams.set("tags", ["rating:safe", ...tags].join(" "));
       target.searchParams.set("limit", "20");
-      target.searchParams.set("order", "random");
       return target.toString();
     },
-    parse: (data) => Array.isArray(data) ? data.map((item) => item.large_file_url || item.file_url || item.preview_file_url).filter(Boolean) : []
+    parse: (data) => Array.isArray(data) ? data.map((item) => item.file_url || item.sample_url || item.preview_url).filter(Boolean) : []
   }
 ];
 
@@ -268,7 +271,7 @@ export async function onRequestGet({ request }) {
   const activeProviders = PROVIDERS.filter((provider) => !provider.retired);
   const selectedProvider = activeProviders.find((provider) => provider.id === selected);
   if (tags.length && selected !== "auto" && (!selectedProvider || !selectedProvider.supportsTags)) {
-    return json({ error: "当前图片源不支持标签筛选。请选择自动模式、Nekos API 或 Danbooru。" }, 400);
+    return json({ error: "当前图片源不支持标签筛选。请选择自动模式、Nekos API 或 Safebooru。" }, 400);
   }
   const candidates = selected === "auto"
     ? [...activeProviders].filter((provider) => !tags.length || provider.supportsTags)
