@@ -26,6 +26,13 @@
   const sourceLink = document.getElementById("galleryPixivLink");
   if (!homePage || !galleryPage || !grid) return;
 
+  // Keep API requests inside the gallery subpath when proxied through bzaxu.top.
+  // On the standalone Pages domain, continue using the normal /api/gallery endpoint.
+  function galleryApiUrl(query = "") {
+    const prefix = window.location.pathname.startsWith("/Waifu-Gallery") ? "/Waifu-Gallery" : "";
+    return prefix + "/api/gallery" + query;
+  }
+
   // Stable masonry lanes: adding a later image never rebalances existing cards.
   let galleryLanes = [];
   let imageSequence = 0;
@@ -419,7 +426,7 @@
       // until the requested number of usable cards is queued, without endless retries.
       while (imageCount() + pendingImageCount() < targetTotal && attempts < 10) {
         attempts++;
-        const response = await fetch("/api/gallery?source=" + encodeURIComponent(source) + "&count=100", {
+        const response = await fetch(galleryApiUrl("?source=" + encodeURIComponent(source) + "&count=100"), {
           method: "GET",
           headers: { "Accept": "application/json" },
           cache: "no-store"
@@ -480,7 +487,7 @@
     if (providerStatusSummary) providerStatusSummary.textContent = "正在并行检测各图片源的响应速度…";
     providerStatusList.replaceChildren();
     try {
-      const response = await fetch("/api/gallery?mode=status", { cache: "no-store", headers: { "Accept": "application/json" } });
+      const response = await fetch(galleryApiUrl("?mode=status"), { cache: "no-store", headers: { "Accept": "application/json" } });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(data.providers)) throw new Error(data.error || "状态接口暂时不可用");
       let online = 0;
@@ -520,7 +527,7 @@
     downloadButton.disabled = true;
     downloadButton.textContent = "正在准备下载…";
     try {
-      const response = await fetch("/api/gallery?mode=download&url=" + encodeURIComponent(url), { cache: "no-store" });
+      const response = await fetch(galleryApiUrl("?mode=download&url=" + encodeURIComponent(url)), { cache: "no-store" });
       if (!response.ok) throw new Error("图片下载失败");
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
