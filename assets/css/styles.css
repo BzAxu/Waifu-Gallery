@@ -2200,8 +2200,7 @@ body.gallery-sidebar-open { overflow:hidden; }
 
 
 /* Loading placeholders share the real gallery masonry columns and sit at its end. */
-#galleryGrid .gallery-column > .gallery-skeleton-placeholder,
-#galleryGrid .gallery-column > .gallery-item--pending {
+#galleryGrid .gallery-column > .gallery-skeleton-placeholder {
   position: relative;
   display: block;
   box-sizing: border-box;
@@ -2221,16 +2220,11 @@ body.gallery-sidebar-open { overflow:hidden; }
   pointer-events: none !important;
   animation: galleryLoadingSweep 1.35s ease-in-out infinite !important;
 }
-#galleryGrid .gallery-column > .gallery-item--pending > img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  aspect-ratio: 3 / 4;
-  object-fit: cover;
-  visibility: hidden !important;
+/* Real images stay completely hidden until they have loaded successfully. */
+#galleryGrid .gallery-column > .gallery-item--pending {
+  display: none !important;
 }
-#galleryGrid .gallery-column > .gallery-skeleton-placeholder::after,
-#galleryGrid .gallery-column > .gallery-item--pending::after {
+#galleryGrid .gallery-column > .gallery-skeleton-placeholder::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -2242,9 +2236,7 @@ body.gallery-sidebar-open { overflow:hidden; }
 }
 @media (prefers-reduced-motion: reduce) {
   #galleryGrid .gallery-column > .gallery-skeleton-placeholder,
-  #galleryGrid .gallery-column > .gallery-item--pending,
-  #galleryGrid .gallery-column > .gallery-skeleton-placeholder::after,
-  #galleryGrid .gallery-column > .gallery-item--pending::after {
+  #galleryGrid .gallery-column > .gallery-skeleton-placeholder::after {
     animation: none !important;
   }
 }
