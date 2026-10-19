@@ -14,9 +14,12 @@
     <section class="panel gallery-hero">
       <div class="gallery-hero-bar">
         <span class="gallery-brand">Waifu Gallery<span aria-hidden="true">.</span></span>
+        <div class="gallery-hero-actions">
+        <button class="button gallery-tag-open" id="galleryTagOpen" type="button" aria-haspopup="dialog" aria-controls="galleryTagDialog" title="按类别选择标签"><span aria-hidden="true">⌕</span> 标签筛选</button>
         <button class="button gallery-menu-trigger" id="galleryMenuOpen" type="button" aria-haspopup="dialog" aria-controls="gallerySettingsDialog" aria-label="画廊设置" title="画廊设置">
           <svg class="gallery-menu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.1"/><circle cx="15" cy="12" r="2.1"/><circle cx="10" cy="18" r="2.1"/></svg>
         </button>
+        </div>
       </div>
     </section>
     <section class="gallery-grid" id="galleryGrid" aria-label="二次元图片画廊"></section>
@@ -31,6 +34,26 @@
     </div>
   </main>
 <footer hidden><div class="foot-line"></div>Waifu Gallery · 二次元图片聚合画廊</footer>
+<section class="gallery-tag-dialog" id="galleryTagDialog" role="dialog" aria-modal="true" aria-labelledby="galleryTagTitle" hidden>
+  <button class="gallery-tag-backdrop" type="button" data-gallery-tag-close aria-label="关闭标签选择"></button>
+  <div class="gallery-tag-card">
+    <button class="gallery-tag-close" type="button" data-gallery-tag-close aria-label="关闭">×</button>
+    <div class="gallery-settings-eyebrow">GALLERY / TAGS</div>
+    <h2 id="galleryTagTitle">选择图片标签</h2>
+    <p class="gallery-settings-description">按类别选择想看的内容。标签会组合筛选，最多选择 5 个。</p>
+    <div class="gallery-tag-selected-head"><strong>已选标签</strong><button class="gallery-tag-clear" id="galleryTagClear" type="button">清空</button></div>
+    <div class="gallery-tag-selected" id="galleryTagSelected" aria-live="polite"><span class="gallery-tag-none">还没有选择标签</span></div>
+    <div class="gallery-tag-category-tabs" id="galleryTagCategoryTabs" role="tablist" aria-label="标签类别">
+      <button type="button" class="is-active" data-tag-category="hair" role="tab" aria-selected="true">发色</button>
+      <button type="button" data-tag-category="features" role="tab" aria-selected="false">角色特征</button>
+      <button type="button" data-tag-category="clothes" role="tab" aria-selected="false">服装</button>
+      <button type="button" data-tag-category="scene" role="tab" aria-selected="false">场景与风格</button>
+    </div>
+    <div class="gallery-tag-options" id="galleryTagOptions" role="group" aria-label="可选标签"></div>
+    <p class="gallery-tag-hint gallery-tag-dialog-hint" id="galleryTagDialogHint">自动模式会在支持标签的图片源中搜索。</p>
+    <div class="gallery-tag-footer"><button class="button gallery-tag-cancel" type="button" data-gallery-tag-close>取消</button><button class="button gallery-tag-confirm" id="galleryTagConfirm" type="button">应用筛选</button></div>
+  </div>
+</section>
 <section class="gallery-settings-dialog" id="gallerySettingsDialog" role="dialog" aria-modal="true" aria-labelledby="gallerySettingsTitle" hidden>
     <button class="gallery-settings-backdrop" type="button" data-gallery-settings-close aria-label="关闭画廊设置"></button>
     <div class="gallery-settings-card">
@@ -62,11 +85,10 @@
             <option value="safebooru">Safebooru（安全评级）</option>
           </select>
         </label>
-        <label class="gallery-tag-label" for="galleryTagInput">标签筛选
-          <input class="gallery-tag-input" id="galleryTagInput" type="text" maxlength="320" placeholder="例如 brown_hair, school_uniform" autocomplete="off" spellcheck="false">
-        </label>
-        <button class="button gallery-tag-apply" id="galleryTagApply" type="button">应用标签</button>
-        <span class="gallery-tag-hint" id="galleryTagHint">自动模式仅查询支持标签的接口；多个标签用逗号分隔。</span>
+        <input id="galleryTagInput" type="hidden" value="">
+        <button class="button gallery-tag-apply" id="galleryTagApply" type="button" hidden>应用标签</button>
+        <button class="button gallery-tag-settings-open" id="galleryTagSettingsOpen" type="button">⌕ 打开标签选择</button>
+        <span class="gallery-tag-hint" id="galleryTagHint">尚未选择标签。可按发色、角色特征、服装和场景分类筛选。</span>
         <button class="button gallery-refresh" id="galleryRefresh" type="button">↻ 刷新</button>
         <span class="gallery-status" id="galleryStatus" role="status" aria-live="polite">正在检测图片源…</span>
       </div>
