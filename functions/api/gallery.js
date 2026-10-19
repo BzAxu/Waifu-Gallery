@@ -75,12 +75,12 @@ const PROVIDERS = [
       target.searchParams.set("limit", "20");
       return target.toString();
     },
-    parse: (data) => Array.isArray(data) ? data.map((item) => item.file_url || item.sample_url || item.preview_url).filter(Boolean) : []
+    parse: (data) => Array.isArray(data) ? data.map((item) => item.file_url).filter((url) => typeof url === "string" && url.length > 0) : []
   }
 ];
 
 const CACHE_HEADERS = { "Cache-Control": "no-store" };
-const TIMEOUT_MS = 6500;
+const TIMEOUT_MS = 30000;
 
 function json(body, status = 200) {
   return Response.json(body, { status, headers: CACHE_HEADERS });
