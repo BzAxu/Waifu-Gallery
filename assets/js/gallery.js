@@ -86,7 +86,18 @@
       ? Number(value)
       : (window.matchMedia("(max-width: 760px)").matches ? 2 : 3);
     const existingItems = [...grid.querySelectorAll(":scope > .gallery-column > *")];
-    const existingLoadingItems = [...loadingGrid.querySelectorAll(":scope > .gallery-loading-column > *")];
+    const oldLoadingLanes = [...loadingGrid.querySelectorAll(":scope > .gallery-loading-column")];
+    // Read loading cards in their visible order (row by row, left to right)
+    // before rebuilding the lanes, so changing the column count does not scramble them.
+    const existingLoadingItems = [];
+    const maxLoadingRows = oldLoadingLanes.reduce(
+      (max, lane) => Math.max(max, lane.children.length), 0
+    );
+    for (let row = 0; row < maxLoadingRows; row++) {
+      oldLoadingLanes.forEach((lane) => {
+        if (lane.children[row]) existingLoadingItems.push(lane.children[row]);
+      });
+    }
     galleryLanes = Array.from({ length: count }, () => {
       const lane = document.createElement("div");
       lane.className = "gallery-column";
@@ -99,15 +110,14 @@
     });
     grid.replaceChildren(...galleryLanes);
     loadingGrid.replaceChildren(...loadingLanes);
-    // Keep completed cards in the existing masonry lanes and loading cards in
-    // a separate, matching set of vertical lanes below the completed gallery.
+    // Keep the existing loaded-image masonry algorithm untouched. Loading cards
+    // use the same lane count and matching column widths, below the completed gallery.
     existingItems.forEach((item) => getShortestGalleryLane().append(item));
     existingLoadingItems.forEach((item, index) => loadingLanes[index % count].append(item));
-    if (value === "auto" || !["2", "3", "4", "5"].includes(value)) {
-      loadingGrid.style.removeProperty("--gallery-columns");
-    } else {
-      loadingGrid.style.setProperty("--gallery-columns", value);
-    }
+    // Always set the actual lane count, including responsive "auto" mode.
+    // This prevents the loading strip from falling back to 3 columns while the
+    // gallery itself has switched to 2 columns on small screens.
+    loadingGrid.style.setProperty("--gallery-columns", String(count));
     updateLoadingGridVisibility();
   }
 
