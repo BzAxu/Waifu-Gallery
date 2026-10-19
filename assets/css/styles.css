@@ -1021,7 +1021,7 @@ body.gallery-view-active .top-nav a { padding:7px 9px; font-size:12px; }
   display: inline-block;
   width: 100%;
   height: clamp(120px, 20vw, 220px);
-  margin: 0 0 15px !important;
+  margin: 0 !important;
   overflow: hidden;
   break-inside: avoid;
   border: 1px solid rgba(190,197,255,.09) !important;
@@ -1312,7 +1312,7 @@ button:focus-visible,
   display: grid !important;
   grid-template-columns: repeat(var(--gallery-columns, 3), minmax(0, 1fr));
   align-items: start;
-  column-count: initial !important;
+
   column-gap: 15px;
 }
 .gallery-column {
@@ -1338,10 +1338,7 @@ button:focus-visible,
   .gallery-column { gap: 9px; }
 }
 
-/* Loading shimmer uses the same responsive column count as the gallery. */
-@media (max-width: 760px) {
-  .gallery-loading-grid:not([style*="--gallery-columns"]) { column-count: 2; }
-}
+/* The loading strip follows the same CSS grid columns as the gallery. */
 
 
 /* Extra shimmer rows keep the loading state visibly multi-row even while APIs respond. */
