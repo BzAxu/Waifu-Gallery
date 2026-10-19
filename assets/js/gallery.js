@@ -98,12 +98,22 @@
     }
   }
 
+  // A refresh invalidates previous image requests and releases their timers.
+  // Unresolved images are deliberately kept off-DOM, so they can never disturb
+  // the masonry lanes or be mistaken for visible gallery cards.
+  function cancelPendingImages() {
+    for (const record of pendingImages) {
+      if (typeof record.cancel === "function") record.cancel();
+    }
+    pendingImages.clear();
+  }
+
   function imageCount() {
     return grid.querySelectorAll(".gallery-item--loaded").length;
   }
 
   function pendingImageCount() {
-    return grid.querySelectorAll(".gallery-item--pending").length;
+    return pendingImages.size;
   }
 
   function setGalleryLaneCount(value) {
@@ -439,6 +449,7 @@
   }
 
   const seen = new Set();
+  const pendingImages = new Set();
   let loading = false;
   let lastBatchAdded = 1;
   let imageBatchSequence = 0;
@@ -592,6 +603,9 @@
       if (loaded) batch.loaded++;
       else batch.failed++;
     }
+    // Old-generation image events may finish after a refresh. They must not
+    // update status, remove current placeholders, or trigger new auto-loads.
+    if (batch && batch.generation !== galleryGeneration) return;
     updateGalleryStatus();
     removePlaceholdersIfSettled();
     if (!imageCount() && !pendingImageCount() && !loading) {
@@ -604,9 +618,12 @@
     if (!url || seen.has(url)) return false;
     seen.add(url);
     const generation = galleryGeneration;
+
+    // Build the card now, but do not attach it to the gallery until the image
+    // has loaded and decoded successfully.
     const card = document.createElement("button");
     card.type = "button";
-    card.className = "gallery-item gallery-item--pending";
+    card.className = "gallery-item";
     const revealIndex = batch ? batch.added : 0;
     card.style.setProperty("--gallery-reveal-delay", Math.min(revealIndex, 8) * 16 + "ms");
     card.setAttribute("aria-label", "查看插画");
@@ -616,69 +633,87 @@
     img.alt = "插画";
     img.className = "is-loading";
     card.append(img);
-    getShortestGalleryLane()?.append(card);
+
+    card.dataset.sourceUrl = url;
+    card.dataset.title = "随机插画";
+
+    const record = {
+      generation,
+      batch,
+      url,
+      card,
+      img,
+      settled: false,
+      timer: 0,
+      cancel: null
+    };
+    pendingImages.add(record);
     if (batch) {
       batch.added++;
       batch.pending++;
     }
 
-    card.dataset.sourceUrl = url;
-    card.dataset.title = "随机插画";
-    let settled = false;
-    let loadTimer = 0;
-
     const clearLoadTimer = () => {
-      if (loadTimer) window.clearTimeout(loadTimer);
-      loadTimer = 0;
+      if (record.timer) window.clearTimeout(record.timer);
+      record.timer = 0;
     };
+
     const failImage = () => {
-      if (settled) return;
-      settled = true;
+      if (record.settled) return;
+      record.settled = true;
       clearLoadTimer();
+      pendingImages.delete(record);
       card.remove();
-      if (generation === galleryGeneration) {
-        seen.delete(url);
-        if (!imageCount() && !pendingImageCount() && !loading) {
-          showNoImagesState("图片文件无法加载。请切换图片源、检查网络或重试。");
-        }
-      }
+      if (generation === galleryGeneration) seen.delete(url);
       settleImageBatch(batch, false);
     };
 
-    img.addEventListener("load", async () => {
-      if (settled) return;
-      if (generation !== galleryGeneration) { failImage(); return; }
+    const onLoad = async () => {
+      if (record.settled) return;
+      if (generation !== galleryGeneration) {
+        failImage();
+        return;
+      }
       try {
         if (typeof img.decode === "function") await img.decode();
       } catch (_) {
-        // Some browsers reject decode() even when the image is usable; check natural size below.
+        // Some browsers reject decode() even when the image is usable.
       }
-      if (settled) return;
+      if (record.settled) return;
       if (generation !== galleryGeneration || !img.naturalWidth || !img.naturalHeight) {
         failImage();
         return;
       }
 
+      record.settled = true;
+      clearLoadTimer();
+      pendingImages.delete(record);
       img.style.aspectRatio = img.naturalWidth + " / " + img.naturalHeight;
       img.style.height = "auto";
       img.dataset.naturalRatio = img.naturalWidth + ":" + img.naturalHeight;
-      settled = true;
-      clearLoadTimer();
-
-      // Keep unresolved image elements invisible. Once loaded, place the card
-      // at the end of the real gallery content, immediately above bottom placeholders.
-      card.remove();
       img.classList.remove("is-loading");
-      card.classList.remove("gallery-item--pending");
       card.classList.add("gallery-item--loaded");
+
+      // Insert the successful image among real cards, immediately above the
+      // decorative placeholders that are temporarily pinned to the bottom.
       insertLoadedCardBeforePlaceholders(card);
       empty.hidden = true;
       settleImageBatch(batch, true);
-    }, { once: true });
+    };
 
+    record.cancel = () => {
+      if (record.settled) return;
+      record.settled = true;
+      clearLoadTimer();
+      img.removeEventListener("load", onLoad);
+      img.removeEventListener("error", failImage);
+      img.removeAttribute("src");
+    };
+    img.addEventListener("load", onLoad, { once: true });
     img.addEventListener("error", failImage, { once: true });
-    loadTimer = window.setTimeout(failImage, 20000);
+    record.timer = window.setTimeout(failImage, 20000);
     img.src = url;
+
     card.addEventListener("click", () => {
       lightboxTrigger = card;
       lightboxImage.src = url;
@@ -701,14 +736,16 @@
     if (loading) return;
     if (reset) {
       galleryGeneration++;
+      cancelPendingImages();
       grid.querySelectorAll(".gallery-item").forEach((card) => card.remove());
-      grid.querySelectorAll(".gallery-skeleton-placeholder, .gallery-item--pending").forEach((item) => item.remove());
+      grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
       seen.clear();
       lastRequestUsedFallback = false;
     }
     const targetTotal = imageCount() + pendingImageCount() + Math.max(0, targetCount);
     const batch = {
       id: ++imageBatchSequence,
+      generation: galleryGeneration,
       added: 0,
       pending: 0,
       loaded: 0,
