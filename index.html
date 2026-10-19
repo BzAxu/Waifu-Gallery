@@ -11,17 +11,24 @@
 <body class="gallery-view-active">
 <main id="top" hidden></main>
 <main class="gallery-page" id="galleryPage" hidden>
-    <section class="panel gallery-hero">
+    <header class="panel gallery-hero gallery-topbar">
       <div class="gallery-hero-bar">
-        <span class="gallery-brand">Waifu Gallery<span aria-hidden="true">.</span></span>
-        <div class="gallery-hero-actions">
-        <button class="button gallery-tag-open" id="galleryTagOpen" type="button" aria-haspopup="dialog" aria-controls="galleryTagDialog" title="按类别选择标签"><span aria-hidden="true">⌕</span> 标签筛选</button>
-        <button class="button gallery-menu-trigger" id="galleryMenuOpen" type="button" aria-haspopup="dialog" aria-controls="gallerySettingsDialog" aria-label="画廊设置" title="画廊设置">
-          <svg class="gallery-menu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.1"/><circle cx="15" cy="12" r="2.1"/><circle cx="10" cy="18" r="2.1"/></svg>
+        <a class="gallery-brand" href="#top" aria-label="Waifu Gallery 首页">Waifu Gallery<span aria-hidden="true">.</span></a>
+        <button class="button gallery-menu-trigger" id="galleryMenuOpen" type="button" aria-haspopup="dialog" aria-controls="gallerySidebar" aria-expanded="false" aria-label="打开侧栏菜单" title="菜单">
+          <svg class="gallery-menu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
-        </div>
       </div>
-    </section>
+    </header>
+    <div class="gallery-sidebar-backdrop" id="gallerySidebarBackdrop" hidden></div>
+    <aside class="gallery-sidebar" id="gallerySidebar" role="dialog" aria-modal="true" aria-labelledby="gallerySidebarTitle" aria-hidden="true" inert>
+      <div class="gallery-sidebar-head">
+        <div><span class="gallery-sidebar-eyebrow">WAIFU / GALLERY</span><h2 id="gallerySidebarTitle">菜单</h2></div>
+        <button class="gallery-sidebar-close" id="gallerySidebarClose" type="button" aria-label="关闭侧栏">×</button>
+      </div>
+      <button class="gallery-sidebar-action" id="gallerySidebarTags" type="button"><span class="gallery-sidebar-action-icon" aria-hidden="true">⌕</span><span><strong>标签筛选</strong><small>按类别选择和组合标签</small></span><span class="gallery-sidebar-chevron" aria-hidden="true">›</span></button>
+      <button class="gallery-sidebar-action" id="gallerySidebarSettings" type="button"><span class="gallery-sidebar-action-icon" aria-hidden="true">⚙</span><span><strong>画廊设置</strong><small>图片来源、列数与服务状态</small></span><span class="gallery-sidebar-chevron" aria-hidden="true">›</span></button>
+      <div class="gallery-sidebar-foot">Waifu Gallery <span>·</span> 二次元图片画廊</div>
+    </aside>
     <section class="gallery-grid" id="galleryGrid" aria-label="二次元图片画廊"></section>
     <div class="gallery-empty" id="galleryEmpty" hidden>
       <div class="gallery-empty-icon">✧</div>
