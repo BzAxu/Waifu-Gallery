@@ -269,11 +269,15 @@
         trigger.focus();
         return;
       }
-      if (event.key === "ArrowDown" && menu.hidden) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
-        trigger.click();
-        const selected = options.find(({ option }) => option.value === select.value);
-        if (selected) selected.item.focus();
+        if (menu.hidden) trigger.click();
+        if (!options.length) return;
+        const selectedIndex = options.findIndex(({ option }) => option.value === select.value);
+        const targetIndex = event.key === "ArrowUp" && menu.hidden
+          ? options.length - 1
+          : Math.max(0, selectedIndex);
+        options[targetIndex]?.item.focus();
       }
     });
     menu.addEventListener("keydown", (event) => {
@@ -1177,6 +1181,7 @@
         });
         chip.append(name, remove);
         tagSelected.append(chip);
+        existingTags.add(tag);
       });
     }
     if (tagConfirmButton) tagConfirmButton.textContent = selectedTags.length ? "应用筛选（" + selectedTags.length + "）" : "清除筛选";
