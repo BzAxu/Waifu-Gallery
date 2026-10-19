@@ -75,6 +75,7 @@ export async function onRequestPost({ request, env }) {
   const requestUrl = new URL(request.url);
   const prefix = requestUrl.pathname.startsWith("/Waifu-Gallery/") ? "/Waifu-Gallery/" : "/";
   const siteBase = String(env.SITE_BASE_URL || (requestUrl.origin + prefix)).replace(/\/+$/, "") + "/";
+  let inviteSent = false;
   try {
     const inviteResponse = await fetch(settings.base + "/auth/v1/invite?redirect_to=" + encodeURIComponent(siteBase), {
       method: "POST",
@@ -99,11 +100,17 @@ export async function onRequestPost({ request, env }) {
       return reply({ error: message }, inviteResponse.status === 429 ? 429 : 400);
     }
 
-    const completed = await rpc(settings, "complete_invite_code", {
-      p_code_hash: codeHash,
-      p_email: email,
-      p_token: reservationToken
-    });
+    inviteSent = true;
+    let completed = false;
+    try {
+      completed = await rpc(settings, "complete_invite_code", {
+        p_code_hash: codeHash,
+        p_email: email,
+        p_token: reservationToken
+      });
+    } catch (completionError) {
+      console.error("Invitation sent but invite-code completion failed:", completionError);
+    }
     if (completed !== true) {
       // Do not release a code after the invitation has already been sent.
       console.error("Invitation sent but invite-code completion needs manual review.");
@@ -112,10 +119,16 @@ export async function onRequestPost({ request, env }) {
     return reply({ message: "邀请邮件已发送，请查收邮箱并打开邮件链接设置密码。若未收到，请检查垃圾邮件。" });
   } catch (error) {
     console.error("Invite request failed:", error);
-    await rpc(settings, "release_invite_code", {
-      p_code_hash: codeHash,
-      p_token: reservationToken
-    }).catch(() => false);
-    return reply({ error: "邀请服务暂时不可用，请稍后重试。" }, 503);
+    // Only release the reservation if the invitation was not sent. Otherwise
+    // releasing could allow the same single-use code to invite another address.
+    if (!inviteSent) {
+      await rpc(settings, "release_invite_code", {
+        p_code_hash: codeHash,
+        p_token: reservationToken
+      }).catch(() => false);
+    }
+    return reply({ error: inviteSent
+      ? "邀请邮件已发送，但邀请码状态确认失败，请联系站长核对，不要重复使用该码。"
+      : "邀请服务暂时不可用，请稍后重试。" }, inviteSent ? 200 : 503);
   }
 }
