@@ -1408,3 +1408,50 @@ button:focus-visible,
   .gallery-loading-grid .gallery-skeleton-placeholder,
   .gallery-loading-grid .gallery-skeleton-placeholder::after { animation: none !important; }
 }
+
+/* Text-only animated brand, matching the spectrum effect on the BzAxu profile card. */
+.gallery-hero .gallery-brand {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(100deg, #fff0a8 0%, #ffbd8b 20%, #ff83b9 43%, #c2a1ff 66%, #7be4f0 88%, #fff0a8 100%);
+  background-size: 100% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  box-shadow: none;
+  font-size: clamp(13px, 2.2vw, 18px);
+  font-weight: 850;
+  line-height: 1.25;
+  letter-spacing: -.45px;
+  white-space: nowrap;
+  text-decoration: none;
+  animation: gallery-brand-spectrum 4s linear infinite;
+}
+.gallery-hero .gallery-brand span {
+  color: transparent;
+  background: linear-gradient(135deg, #ff9fc6, #b7a4ff 55%, #75e5ef);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.gallery-hero .gallery-brand:hover,
+.gallery-hero .gallery-brand:focus-visible {
+  transform: none;
+  border: 0;
+  background-color: transparent;
+  box-shadow: none;
+  filter: brightness(1.12);
+}
+@keyframes gallery-brand-spectrum {
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gallery-hero .gallery-brand { animation: none; }
+}
+
