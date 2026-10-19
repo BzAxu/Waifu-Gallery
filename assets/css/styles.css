@@ -1375,3 +1375,36 @@ button:focus-visible,
 @media (max-width: 760px) {
   .gallery-loading-grid:not([style*="--gallery-columns"]) { column-count: 2; }
 }
+
+
+/* Extra shimmer rows keep the loading state visibly multi-row even while APIs respond. */
+.gallery-loading-grid .gallery-skeleton-placeholder {
+  display: block;
+  width: 100%;
+  height: clamp(120px, 20vw, 220px);
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(190,197,255,.09);
+  border-radius: 15px;
+  background: linear-gradient(110deg, rgba(255,255,255,.025) 8%, rgba(169,155,255,.11) 18%, rgba(138,201,255,.07) 33%, rgba(255,255,255,.025) 48%);
+  background-size: 220% 100%;
+  animation: galleryLoadingSweep 1.35s ease-in-out infinite;
+  break-inside: avoid;
+}
+.gallery-loading-grid .gallery-skeleton-placeholder::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.055) 45%, transparent 70%);
+  transform: translateX(-100%);
+  animation: galleryLoadingShimmer 1.45s ease-in-out infinite;
+}
+@media (max-width: 520px) {
+  .gallery-loading-grid .gallery-skeleton-placeholder { height: clamp(110px, 34vw, 180px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gallery-loading-grid .gallery-skeleton-placeholder,
+  .gallery-loading-grid .gallery-skeleton-placeholder::after { animation: none !important; }
+}
