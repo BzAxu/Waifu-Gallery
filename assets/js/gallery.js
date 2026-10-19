@@ -234,7 +234,7 @@
     requestAnimationFrame(() => checkAutoLoad());
   }
   if (columnsSelect) {
-    let savedColumns = "auto";
+    let savedColumns = "5";
     try {
       const saved = localStorage.getItem(columnsStorageKey);
       if (saved && ["2", "3", "4", "5"].includes(saved)) savedColumns = saved;
