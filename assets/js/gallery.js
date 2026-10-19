@@ -794,17 +794,13 @@
   }
   function updateTagFilterAvailability() {
     const available = tagFilteringAvailable();
-    if (tagInput) tagInput.disabled = loading || !available;
-    if (tagApplyButton) tagApplyButton.disabled = loading || !available;
-    if (tagHint) {
-      tagHint.textContent = available
-        ? (sourceSelect && sourceSelect.value === "auto"
-          ? "自动模式只会查询支持标签的接口；多个标签用逗号分隔，最多 5 个。"
-          : sourceSelect && sourceSelect.value === "safebooru"
-            ? "Safebooru 标签使用下划线格式，例如 brown_hair；默认限制为 safe 评级。"
-            : "Nekos API 支持标签组合查询，默认限制为 safe 评级；多个标签用逗号分隔。")
-        : "当前图片源不支持标签筛选。切换到自动模式、Nekos API 或 Safebooru 即可使用。";
-    }
+    if (tagInput) tagInput.disabled = !available;
+    if (tagApplyButton) tagApplyButton.disabled = !available;
+    if (tagSettingsOpen) tagSettingsOpen.disabled = loading || !available;
+    if (tagDialogOpen) tagDialogOpen.disabled = loading || !available;
+    if (tagHint && !available) tagHint.textContent = "当前图片源不支持标签筛选。切换到自动模式、Nekos API 或 Safebooru 即可使用。";
+    else if (tagHint && !tagInput.value) tagHint.textContent = "尚未选择标签。可按发色、角色特征、服装和场景分类筛选。";
+    updateTagDialogHint();
   }
   refreshButton.addEventListener("click", () => {
     lastRequestUsedFallback = false;
