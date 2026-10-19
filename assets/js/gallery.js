@@ -234,12 +234,21 @@
       });
       if (opening) {
         const rect = trigger.getBoundingClientRect();
-        const availableBelow = window.innerHeight - rect.bottom;
-        const availableAbove = rect.top;
+        // The settings sheet itself scrolls and clips overflow, so calculate
+        // room inside that sheet rather than against the whole browser viewport.
+        const scrollBoundary = wrapper.closest(".gallery-settings-card");
+        const boundaryRect = scrollBoundary ? scrollBoundary.getBoundingClientRect() : {
+          top: 0, bottom: window.innerHeight
+        };
+        const boundaryTop = Math.max(0, boundaryRect.top);
+        const boundaryBottom = Math.min(window.innerHeight, boundaryRect.bottom);
+        const availableAbove = Math.max(0, rect.top - boundaryTop - 8);
+        const availableBelow = Math.max(0, boundaryBottom - rect.bottom - 8);
         const expectedMenuHeight = Math.min(options.length * 43 + 16, window.innerHeight * 0.46, 320);
-        wrapper.classList.toggle("opens-up",
-          availableBelow < expectedMenuHeight + 24 && availableAbove > availableBelow
-        );
+        const opensUp = availableBelow < expectedMenuHeight + 24 && availableAbove > availableBelow;
+        const room = opensUp ? availableAbove : availableBelow;
+        wrapper.classList.toggle("opens-up", opensUp);
+        menu.style.maxHeight = Math.max(80, Math.min(expectedMenuHeight, room - 4)) + "px";
         menu.hidden = false;
         wrapper.classList.add("is-open");
         trigger.setAttribute("aria-expanded", "true");
