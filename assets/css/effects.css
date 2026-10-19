@@ -221,3 +221,32 @@ body::after {
     transition-duration: .01ms !important;
   }
 }
+
+
+/* Ambient starfield: a real animated canvas, layered above the background and below gallery UI. */
+#galleryParticles {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  pointer-events: none;
+  opacity: .96;
+}
+.gallery-page,
+footer {
+  position: relative;
+  z-index: 2;
+}
+.gallery-sidebar,
+.gallery-sidebar-backdrop,
+.gallery-settings,
+.gallery-tag-dialog,
+.gallery-lightbox {
+  z-index: 10;
+}
+@media (prefers-reduced-motion: reduce) {
+  #galleryParticles { opacity: .7; }
+}
