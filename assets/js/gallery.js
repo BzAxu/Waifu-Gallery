@@ -19,6 +19,15 @@
   const tagInput = document.getElementById("galleryTagInput");
   const tagApplyButton = document.getElementById("galleryTagApply");
   const tagHint = document.getElementById("galleryTagHint");
+  const tagDialog = document.getElementById("galleryTagDialog");
+  const tagDialogOpen = document.getElementById("galleryTagOpen");
+  const tagSettingsOpen = document.getElementById("galleryTagSettingsOpen");
+  const tagOptions = document.getElementById("galleryTagOptions");
+  const tagSelected = document.getElementById("galleryTagSelected");
+  const tagCategoryTabs = document.getElementById("galleryTagCategoryTabs");
+  const tagClearButton = document.getElementById("galleryTagClear");
+  const tagConfirmButton = document.getElementById("galleryTagConfirm");
+  const tagDialogHint = document.getElementById("galleryTagDialogHint");
   const columnsSelect = document.getElementById("galleryColumnsSelect");
   const providerStatusList = document.getElementById("galleryProviderStatusList");
   const providerStatusRefresh = document.getElementById("galleryProviderStatusRefresh");
@@ -697,6 +706,87 @@
         downloadButton.textContent = "↓ 下载图片";
       }
     }
+  });
+
+  const TAG_CATEGORIES = {
+    hair: [["black_hair","黑发"],["white_hair","白发"],["blonde_hair","金发"],["brown_hair","棕发"],["blue_hair","蓝发"],["pink_hair","粉发"],["red_hair","红发"],["purple_hair","紫发"],["green_hair","绿发"],["silver_hair","银发"]],
+    features: [["neko","猫系角色"],["cat_ears","猫耳"],["animal_ears","兽耳"],["elf","精灵"],["wings","翅膀"],["tail","尾巴"],["horns","角"],["glasses","眼镜"],["twintails","双马尾"],["ponytail","马尾"]],
+    clothes: [["school_uniform","校服"],["maid","女仆装"],["kimono","和服"],["dress","礼服"],["armor","铠甲"],["hoodie","连帽衫"],["gothic","哥特风"],["casual","日常服"]],
+    scene: [["outdoors","户外"],["sky","天空"],["night","夜景"],["flowers","花朵"],["stars","星空"],["fantasy","幻想风"],["city","城市"],["water","水景"],["landscape","风景"],["weapon","武器"]]
+  };
+  let activeTagCategory = "hair";
+  let selectedTags = [];
+  function syncSelectedTagsFromInput() {
+    selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean).slice(0, 5);
+  }
+  function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
+  function renderSelectedTags() {
+    if (!tagSelected) return;
+    tagSelected.replaceChildren();
+    if (!selectedTags.length) {
+      const emptyTag = document.createElement("span"); emptyTag.className = "gallery-tag-none"; emptyTag.textContent = "还没有选择标签"; tagSelected.append(emptyTag);
+    } else selectedTags.forEach((tag) => {
+      const chip = document.createElement("span"); chip.className = "gallery-tag-selected-chip";
+      const name = document.createElement("span"); name.textContent = tagLabel(tag);
+      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×"; remove.setAttribute("aria-label", "移除 " + name.textContent);
+      remove.addEventListener("click", () => { selectedTags = selectedTags.filter((item) => item !== tag); renderTagOptions(); renderSelectedTags(); });
+      chip.append(name, remove); tagSelected.append(chip);
+    });
+    if (tagConfirmButton) tagConfirmButton.textContent = selectedTags.length ? "应用筛选（" + selectedTags.length + "）" : "清除筛选";
+  }
+  function renderTagOptions() {
+    if (!tagOptions) return;
+    tagOptions.replaceChildren();
+    (TAG_CATEGORIES[activeTagCategory] || []).forEach(([tag, label]) => {
+      const button = document.createElement("button"); button.type = "button";
+      button.className = "gallery-tag-option" + (selectedTags.includes(tag) ? " is-selected" : "");
+      button.setAttribute("aria-pressed", String(selectedTags.includes(tag)));
+      const mark = document.createElement("span"); mark.className = "gallery-tag-option-mark"; mark.textContent = selectedTags.includes(tag) ? "✓" : "+";
+      const text = document.createElement("span"); text.textContent = label; button.append(mark, text);
+      button.addEventListener("click", () => {
+        if (selectedTags.includes(tag)) selectedTags = selectedTags.filter((item) => item !== tag);
+        else if (selectedTags.length >= 5) { if (tagDialogHint) tagDialogHint.textContent = "最多选择 5 个标签，请先取消一个已选标签。"; return; }
+        else selectedTags.push(tag);
+        renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
+      });
+      tagOptions.append(button);
+    });
+  }
+  function updateTagDialogHint() {
+    if (!tagDialogHint) return;
+    tagDialogHint.textContent = !tagFilteringAvailable()
+      ? "当前图片源不支持标签筛选，请在画廊设置中切换到自动模式、Nekos API 或 Safebooru。"
+      : sourceSelect && sourceSelect.value === "safebooru" ? "Safebooru 将使用安全评级（safe）进行筛选。"
+      : sourceSelect && sourceSelect.value === "nekosapi" ? "Nekos API 将使用安全评级（safe）进行筛选。"
+      : "自动模式只会查询支持标签的图片源。标签组合采用同时匹配规则。";
+  }
+  function openTagDialog() {
+    if (!tagDialog) return;
+    syncSelectedTagsFromInput(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
+    tagDialog.hidden = false; document.body.classList.add("gallery-tags-open");
+    const closeButton = tagDialog.querySelector(".gallery-tag-close"); if (closeButton) closeButton.focus();
+  }
+  function closeTagDialog() {
+    if (!tagDialog || tagDialog.hidden) return;
+    tagDialog.hidden = true; document.body.classList.remove("gallery-tags-open");
+    if (tagDialogOpen) tagDialogOpen.focus();
+  }
+  if (tagDialogOpen) tagDialogOpen.addEventListener("click", openTagDialog);
+  if (tagSettingsOpen) tagSettingsOpen.addEventListener("click", openTagDialog);
+  if (tagDialog) {
+    tagDialog.querySelectorAll("[data-gallery-tag-close]").forEach((button) => button.addEventListener("click", closeTagDialog));
+    document.addEventListener("keydown", (event) => { if (!tagDialog.hidden && event.key === "Escape") { event.preventDefault(); closeTagDialog(); } });
+  }
+  if (tagCategoryTabs) tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((button) => button.addEventListener("click", () => {
+    activeTagCategory = button.dataset.tagCategory;
+    tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((tab) => { const active = tab === button; tab.classList.toggle("is-active", active); tab.setAttribute("aria-selected", String(active)); });
+    renderTagOptions();
+  }));
+  if (tagClearButton) tagClearButton.addEventListener("click", () => { selectedTags = []; renderTagOptions(); renderSelectedTags(); });
+  if (tagConfirmButton) tagConfirmButton.addEventListener("click", () => {
+    if (tagInput) tagInput.value = selectedTags.join(",");
+    if (tagHint) tagHint.textContent = selectedTags.length ? "当前标签：" + selectedTags.map(tagLabel).join("、") : "尚未选择标签。可按类别打开标签选择器。";
+    closeTagDialog(); loadImages({ reset: true, targetCount: 100 });
   });
 
   function tagFilteringAvailable() {
