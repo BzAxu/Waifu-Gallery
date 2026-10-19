@@ -918,38 +918,7 @@ body.gallery-view-active .top-nav a { padding:7px 9px; font-size:12px; }
 }
 
 
-/* Natural-ratio masonry gallery: fixed column widths, image heights follow intrinsic ratios. */
-.gallery-grid {
-  display: block;
-  column-count: var(--gallery-columns, 3);
-  column-gap: 15px;
-  column-fill: balance;
-}
-.gallery-item {
-  display: inline-block;
-  width: 100%;
-  margin: 0 0 15px !important;
-  break-inside: avoid;
-  vertical-align: top;
-}
-.gallery-item:nth-child(3n + 2),
-.gallery-item:nth-child(even) { margin-top: 0 !important; }
-.gallery-item img {
-  width: 100%;
-  height: auto;
-  aspect-ratio: auto;
-  object-fit: contain;
-}
-@media (max-width: 760px) {
-  .gallery-grid { column-gap: 11px; }
-  .gallery-item { margin-bottom: 11px !important; }
-  .gallery-grid:not([style*="--gallery-columns"]) { column-count: 2; }
-}
-@media (max-width: 520px) {
-  .gallery-grid { column-gap: 9px; }
-  .gallery-item { margin-bottom: 9px !important; }
-}
-
+/* Thumbnail ratios are intrinsic; layout uses the fixed lanes defined below. */
 
 /* Explicitly remove every preset crop/ratio from gallery thumbnails. */
 #galleryGrid .gallery-item {
@@ -1044,8 +1013,7 @@ body.gallery-view-active .top-nav a { padding:7px 9px; font-size:12px; }
 /* Loading placeholders live in a separate strip below all completed images. */
 .gallery-loading-grid {
   margin-top: 2px;
-  column-count: var(--gallery-columns, 3);
-  column-gap: 15px;
+  row-gap: 15px;
 }
 .gallery-loading-grid:empty { display: none; }
 .gallery-loading-grid .gallery-item--pending {
@@ -1083,12 +1051,11 @@ body.gallery-view-active .top-nav a { padding:7px 9px; font-size:12px; }
   to { transform: translateX(100%); }
 }
 @media (max-width: 760px) {
-  .gallery-loading-grid { column-gap: 11px; }
-  .gallery-loading-grid .gallery-item--pending { margin-bottom: 11px !important; }
+  .gallery-loading-grid { column-gap: 11px; row-gap: 11px; }
 }
 @media (max-width: 520px) {
-  .gallery-loading-grid { column-gap: 9px; }
-  .gallery-loading-grid .gallery-item--pending { margin-bottom: 9px !important; height: clamp(110px, 34vw, 180px); }
+  .gallery-loading-grid { column-gap: 9px; row-gap: 9px; }
+  .gallery-loading-grid .gallery-item--pending { height: clamp(110px, 34vw, 180px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .gallery-loading-grid .gallery-item--pending,
@@ -1097,7 +1064,7 @@ body.gallery-view-active .top-nav a { padding:7px 9px; font-size:12px; }
 
 
 /* Animate each thumbnail when it enters the finished gallery. */
-#galleryGrid > .gallery-item--loaded {
+#galleryGrid .gallery-item--loaded {
   animation: galleryImageAppear 520ms cubic-bezier(.18,.75,.25,1) both;
   will-change: opacity, transform, filter;
 }
@@ -1118,7 +1085,7 @@ body.gallery-view-active .top-nav a { padding:7px 9px; font-size:12px; }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  #galleryGrid > .gallery-item--loaded {
+  #galleryGrid .gallery-item--loaded {
     animation: none !important;
     will-change: auto;
   }
@@ -1232,7 +1199,7 @@ body.gallery-view-active .top-nav a { padding:7px 9px; font-size:12px; }
   filter: saturate(1.06) contrast(1.015);
 }
 /* Keep the entrance effect off transform so it never cancels the card's hover lift. */
-#galleryGrid > .gallery-item--loaded {
+#galleryGrid .gallery-item--loaded {
   animation: galleryCardReveal 480ms cubic-bezier(.18,.75,.25,1) both;
   will-change: opacity, filter;
 }
@@ -1333,7 +1300,7 @@ button:focus-visible,
   .button {
     transition: none !important;
   }
-  #galleryGrid > .gallery-item--loaded {
+  #galleryGrid .gallery-item--loaded {
     animation: none !important;
     will-change: auto;
   }
@@ -1438,14 +1405,6 @@ button:focus-visible,
   background: linear-gradient(135deg, #ff9fc6, #b7a4ff 55%, #75e5ef);
   -webkit-background-clip: text;
   background-clip: text;
-}
-.gallery-hero .gallery-brand:hover,
-.gallery-hero .gallery-brand:focus-visible {
-  transform: none;
-  border: 0;
-  background-color: transparent;
-  box-shadow: none;
-  filter: brightness(1.12);
 }
 @keyframes gallery-brand-spectrum {
   from { filter: hue-rotate(0deg); }
