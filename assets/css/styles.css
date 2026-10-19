@@ -781,9 +781,11 @@ body.gallery-open{ overflow: hidden; }
 .gallery-menu-trigger-arrow{ color:var(--accent-2); transition:transform .2s ease; }
 .gallery-menu-trigger:hover .gallery-menu-trigger-arrow{ transform:translate(2px,-2px); }
 .gallery-settings-dialog[hidden]{ display:none !important; }
+.gallery-settings-dialog.is-opening .gallery-settings-backdrop{ animation: galleryDialogBackdropIn 680ms var(--motion-settle) both; }
+.gallery-settings-dialog.is-closing .gallery-settings-backdrop{ animation: galleryDialogBackdropOut 360ms cubic-bezier(.4,0,.2,1) both; }
 .gallery-settings-dialog{ position:fixed; inset:0; z-index:100; display:grid; place-items:center; padding:18px; }
-.gallery-settings-backdrop{ position:absolute; inset:0; width:100%; height:100%; border:0; background:rgba(4,6,14,.72); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); cursor:default; animation:gallerySettingsFade .18s ease both; }
-.gallery-settings-card{ position:relative; width:min(520px,100%); max-height:min(82vh,760px); overflow:auto; padding:clamp(22px,5vw,30px); border:1px solid rgba(222,228,255,.18); border-top-color:rgba(255,255,255,.28); border-radius:24px; background:linear-gradient(145deg,rgba(36,41,63,.97),rgba(15,18,31,.98)); box-shadow:0 28px 100px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.08); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); animation:gallerySettingsIn .24s cubic-bezier(.2,.8,.2,1) both; }
+.gallery-settings-backdrop{ position:absolute; inset:0; width:100%; height:100%; border:0; background:rgba(4,6,14,.72); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); cursor:default; animation:none; }
+.gallery-settings-card{ position:relative; width:min(520px,100%); max-height:min(82vh,760px); overflow:auto; padding:clamp(22px,5vw,30px); border:1px solid rgba(222,228,255,.18); border-top-color:rgba(255,255,255,.28); border-radius:24px; background:linear-gradient(145deg,rgba(36,41,63,.97),rgba(15,18,31,.98)); box-shadow:0 28px 100px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.08); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px); animation:none; }
 .gallery-settings-close{ position:absolute; top:15px; right:16px; display:grid; place-items:center; width:36px; height:36px; border:1px solid var(--line); border-radius:12px; color:var(--muted); background:rgba(255,255,255,.045); font-size:25px; line-height:1; cursor:pointer; }
 .gallery-settings-eyebrow{ color:var(--accent); font-size:10px; font-weight:800; letter-spacing:1.8px; }
 .gallery-settings-card h2{ margin:5px 45px 4px 0; font-size:24px; letter-spacing:-.5px; }
