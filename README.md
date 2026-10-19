@@ -93,7 +93,8 @@
    - `https://waifu-gallery-bce.pages.dev/`
    - `https://bzaxu.top/Waifu-Gallery/`
 4. 在 **Authentication → Providers → Email** 中启用邮箱登录和邮件验证。邀请邮件与密码重置邮件需要可用的邮件投递配置；公开内测前应配置自己的 SMTP，并测试投递、链接有效期及垃圾邮件情况。
-5. 为站长账号在 Supabase Dashboard 的 **Authentication → Users** 中手动创建一个用户，并确保邮箱已验证。复制该用户的 UUID，后面用于站长权限校验。不要通过公开注册流程创建站长账号。
+5. 在 **Authentication → Sign In / Providers**（具体名称可能随 Dashboard 版本变化）中关闭普通用户直接注册的开关，防止访客绕过邀请码直接调用 Supabase 的公开注册接口。账号创建只走本项目的服务端邀请码端点；管理员邀请接口是否可在该设置下使用，应在测试项目中先验证。
+6. 为站长账号在 Supabase Dashboard 的 **Authentication → Users** 中手动创建一个用户，并确保邮箱已验证。复制该用户的 UUID，后面用于站长权限校验。不要通过公开注册流程创建站长账号。
 
 ### 2. 配置前端公开参数
 
