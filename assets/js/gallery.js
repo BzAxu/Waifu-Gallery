@@ -16,7 +16,6 @@
   const tagApplyButton = document.getElementById("galleryTagApply");
   const tagHint = document.getElementById("galleryTagHint");
   const tagDialog = document.getElementById("galleryTagDialog");
-  const tagDialogOpen = document.getElementById("galleryTagOpen");
   const tagSettingsOpen = document.getElementById("galleryTagSettingsOpen");
   const tagOptions = document.getElementById("galleryTagOptions");
   const tagSelected = document.getElementById("galleryTagSelected");
@@ -1305,7 +1304,6 @@
     if (tagInput) tagInput.disabled = unavailable;
     if (tagApplyButton) tagApplyButton.disabled = unavailable;
     if (tagSettingsOpen) tagSettingsOpen.disabled = unavailable;
-    if (tagDialogOpen) tagDialogOpen.disabled = unavailable;
     if (tagConfirmButton) tagConfirmButton.disabled = unavailable;
     if (tagClearButton) tagClearButton.disabled = loading;
     if (tagCategoryTabs) {
