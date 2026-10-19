@@ -83,12 +83,45 @@
     return shortest;
   }
 
+  function animatePlaceholderReflow(beforeRects) {
+    if (!beforeRects || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const moved = [];
+    for (const [item, before] of beforeRects) {
+      if (!item.isConnected) continue;
+      const after = item.getBoundingClientRect();
+      const dx = before.left - after.left;
+      const dy = before.top - after.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+      item.style.transition = "none";
+      item.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+      moved.push(item);
+    }
+    if (!moved.length) return;
+    void grid.offsetHeight;
+    requestAnimationFrame(() => {
+      for (const item of moved) {
+        item.style.transition = "transform 360ms cubic-bezier(.2,.75,.25,1)";
+        item.style.transform = "translate3d(0, 0, 0)";
+      }
+      window.setTimeout(() => {
+        for (const item of moved) {
+          item.style.removeProperty("transition");
+          item.style.removeProperty("transform");
+        }
+      }, 400);
+    });
+  }
+
   function insertLoadedCardBeforePlaceholders(card) {
     const lane = getShortestContentLane();
     if (!lane) return;
+    const beforeRects = new Map(
+      [...grid.querySelectorAll(".gallery-skeleton-placeholder")].map((item) => [item, item.getBoundingClientRect()])
+    );
     const firstPlaceholder = lane.querySelector(":scope > .gallery-skeleton-placeholder");
     if (firstPlaceholder) lane.insertBefore(card, firstPlaceholder);
     else lane.append(card);
+    animatePlaceholderReflow(beforeRects);
   }
 
   function removePlaceholdersIfSettled() {
