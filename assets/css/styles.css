@@ -1940,3 +1940,88 @@ body.gallery-sidebar-open { overflow:hidden; }
   .gallery-topbar .gallery-hero-bar { width: calc(100% - 24px); }
   .gallery-topbar .gallery-brand { font-size: 18px; }
 }
+
+
+/* Structural correction: the navigation must span the viewport, while gallery content stays centered.
+   Keep fixed drawer elements outside any transformed ancestor so they are viewport-fixed on mobile too. */
+.gallery-page {
+  width: 100%;
+  margin: 0;
+  isolation: isolate;
+  animation: none !important;
+}
+.gallery-content {
+  width: min(1180px, calc(100% - 36px));
+  margin: 0 auto 64px;
+  position: relative;
+  animation: galleryViewIn 360ms cubic-bezier(.2,.75,.25,1) both;
+}
+.gallery-topbar.panel {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: rgba(16, 18, 27, .82);
+  box-shadow: none;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  overflow: visible;
+}
+.gallery-topbar .gallery-hero-bar {
+  width: min(1180px, calc(100% - 36px));
+  min-height: 66px;
+  margin: 0 auto;
+  padding: 0;
+}
+.gallery-topbar .gallery-brand {
+  font-size: 20px;
+  font-weight: 850;
+  letter-spacing: -.7px;
+  background: none;
+  color: var(--text);
+  animation: none;
+}
+.gallery-topbar .gallery-brand span { color: var(--accent); }
+.gallery-topbar .gallery-menu-trigger {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: color .22s ease, background .22s ease;
+}
+.gallery-topbar .gallery-menu-trigger:hover {
+  transform: none;
+  color: var(--text);
+  background: var(--surface-2);
+}
+.gallery-topbar .gallery-menu-icon {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  transition: color .22s ease;
+}
+#galleryGrid { margin-top: 16px; }
+@media (max-width: 700px) {
+  .gallery-content { width: min(100% - 28px, 560px); margin-bottom: 42px; }
+  .gallery-topbar .gallery-hero-bar { width: min(100% - 28px, 560px); min-height: 60px; gap: 8px; }
+  .gallery-topbar .gallery-brand { font-size: 20px; }
+  #galleryGrid { margin-top: 16px; }
+}
+@media (max-width: 390px) {
+  .gallery-content { width: calc(100% - 24px); }
+  .gallery-topbar .gallery-hero-bar { width: calc(100% - 24px); }
+  .gallery-topbar .gallery-brand { font-size: 18px; }
+}
