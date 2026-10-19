@@ -316,6 +316,11 @@
     } catch (_) {}
     applyColumnCount(savedColumns);
     columnsSelect.addEventListener("change", () => applyColumnCount(columnsSelect.value));
+    // The native select's value is restored programmatically, so explicitly
+    // sync the visual custom picker label when a saved non-auto value exists.
+    if (savedColumns !== "auto") {
+      columnsSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    }
   }
 
   // Keep the number of fixed lanes in sync with the responsive CSS grid.
@@ -675,6 +680,9 @@
       empty.hidden = true;
       status.textContent = "正在获取公开插画…";
     }
+    // Keep all tag controls synchronized with the in-flight request state. This
+    // prevents confirming a new filter while loadImages() would ignore it.
+    updateTagFilterAvailability();
   }
 
   function showNoImagesState(message = "图片文件暂时无法加载。请尝试切换图片源或重试。") {
@@ -1278,10 +1286,23 @@
   }
   function updateTagFilterAvailability() {
     const available = tagFilteringAvailable();
-    if (tagInput) tagInput.disabled = !available;
-    if (tagApplyButton) tagApplyButton.disabled = !available;
-    if (tagSettingsOpen) tagSettingsOpen.disabled = loading || !available;
-    if (tagDialogOpen) tagDialogOpen.disabled = loading || !available;
+    const unavailable = loading || !available;
+    if (tagInput) tagInput.disabled = unavailable;
+    if (tagApplyButton) tagApplyButton.disabled = unavailable;
+    if (tagSettingsOpen) tagSettingsOpen.disabled = unavailable;
+    if (tagDialogOpen) tagDialogOpen.disabled = unavailable;
+    if (tagConfirmButton) tagConfirmButton.disabled = unavailable;
+    if (tagClearButton) tagClearButton.disabled = loading;
+    if (tagCategoryTabs) {
+      tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((tab) => {
+        tab.disabled = unavailable;
+      });
+    }
+    if (tagOptions) {
+      tagOptions.querySelectorAll(".gallery-tag-option").forEach((option) => {
+        option.disabled = unavailable;
+      });
+    }
     if (tagHint && !available) tagHint.textContent = "当前图片源不支持标签筛选。切换到自动模式、Nekos API 或 Safebooru 即可使用。";
     else if (tagHint && !tagInput.value) tagHint.textContent = "尚未选择标签。可按发色、角色特征、服装和场景分类筛选。";
     updateTagDialogHint();
