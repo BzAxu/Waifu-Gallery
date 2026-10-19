@@ -339,7 +339,25 @@
   sidebarTagsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); settingsOpen?.focus({ preventScroll: true }); openTagDialog(); });
   sidebarSettingsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); settingsOpen?.focus({ preventScroll: true }); openSettings(); });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && sidebar && !sidebarBackdrop?.hidden) closeSidebar();
+    if (!sidebar || sidebarBackdrop?.hidden) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSidebar();
+      return;
+    }
+    if (event.key === "Tab") {
+      const controls = [...sidebar.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+        .filter((el) => el.getClientRects().length);
+      if (!controls.length) return;
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
   });
   let settingsTrigger = null;
   function openSettings() {
