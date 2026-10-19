@@ -341,8 +341,11 @@
 
   // Shared dialog lifecycle: animate both entrance and exit, while respecting reduced-motion preferences.
   const dialogCloseCleanup = new WeakMap();
+  const dialogOpenCleanup = new WeakMap();
   function openAnimatedDialog(dialog, bodyClass) {
     if (!dialog) return;
+    const previousOpenCleanup = dialogOpenCleanup.get(dialog);
+    if (previousOpenCleanup) previousOpenCleanup();
     const previousCleanup = dialogCloseCleanup.get(dialog);
     if (previousCleanup) previousCleanup();
     const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card");
@@ -352,12 +355,20 @@
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && panel) {
       void dialog.offsetWidth;
       dialog.classList.add("is-opening");
+      let cleanupOpen = () => {};
       const onOpenEnd = (event) => {
         if (event.target !== panel || !event.animationName.startsWith("galleryDialogPanelIn")) return;
         dialog.classList.remove("is-opening");
+        cleanupOpen();
+      };
+      cleanupOpen = () => {
         dialog.removeEventListener("animationend", onOpenEnd);
+        dialog.removeEventListener("animationcancel", cleanupOpen);
+        if (dialogOpenCleanup.get(dialog) === cleanupOpen) dialogOpenCleanup.delete(dialog);
       };
       dialog.addEventListener("animationend", onOpenEnd);
+      dialog.addEventListener("animationcancel", cleanupOpen);
+      dialogOpenCleanup.set(dialog, cleanupOpen);
     }
   }
 
@@ -379,6 +390,8 @@
       return;
     }
 
+    const pendingOpenCleanup = dialogOpenCleanup.get(dialog);
+    if (pendingOpenCleanup) pendingOpenCleanup();
     dialog.classList.remove("is-opening");
     void dialog.offsetWidth;
     dialog.classList.add("is-closing");
@@ -529,6 +542,7 @@
       if (settingsDialog.hidden || getTopmostOpenDialog() !== settingsDialog) return;
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopImmediatePropagation();
         closeSettings();
       } else {
         trapDialogTab(event, settingsDialog);
@@ -1042,6 +1056,7 @@
     if (lightbox.hidden || getTopmostOpenDialog() !== lightbox) return;
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopImmediatePropagation();
       closeLightbox();
       return;
     }
@@ -1225,6 +1240,7 @@
       if (tagDialog.hidden || getTopmostOpenDialog() !== tagDialog) return;
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopImmediatePropagation();
         closeTagDialog();
       } else {
         trapDialogTab(event, tagDialog);
