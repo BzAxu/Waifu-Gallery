@@ -2025,3 +2025,40 @@ body.gallery-sidebar-open { overflow:hidden; }
   .gallery-topbar .gallery-hero-bar { width: calc(100% - 24px); }
   .gallery-topbar .gallery-brand { font-size: 18px; }
 }
+
+
+/* Brand: preserve the animated spectrum gradient without making the title a link. */
+.gallery-topbar .gallery-brand {
+  display: inline-block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(100deg, #fff0a8 0%, #ffbd8b 20%, #ff83b9 43%, #c2a1ff 66%, #7be4f0 88%, #fff0a8 100%);
+  background-size: 100% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  box-shadow: none;
+  text-decoration: none;
+  cursor: default;
+  animation: none;
+}
+
+/* The dialog opening class owns the entrance animation. Avoid replaying a second
+   base animation when JS removes .is-opening after animationend. */
+.gallery-tag-card,
+.gallery-settings-card {
+  animation: none;
+}
+.gallery-tag-dialog.is-opening .gallery-tag-card,
+.gallery-settings-dialog.is-opening .gallery-settings-card {
+  animation: galleryDialogPanelInElegant 680ms var(--motion-settle) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gallery-tag-dialog.is-opening .gallery-tag-card,
+  .gallery-settings-dialog.is-opening .gallery-settings-card,
+  .gallery-tag-card,
+  .gallery-settings-card {
+    animation: none !important;
+  }
+}
