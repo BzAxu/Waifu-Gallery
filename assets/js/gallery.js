@@ -4,10 +4,6 @@
   const galleryPage = document.getElementById("galleryPage");
   const footer = document.querySelector("footer");
   const grid = document.getElementById("galleryGrid");
-  const loadingGrid = document.createElement("div");
-  loadingGrid.className = "gallery-grid gallery-loading-grid";
-  loadingGrid.setAttribute("aria-hidden", "true");
-  if (grid) grid.insertAdjacentElement("afterend", loadingGrid);
   const status = document.getElementById("galleryStatus");
   const empty = document.getElementById("galleryEmpty");
   const emptyTitle = document.getElementById("galleryEmptyTitle");
@@ -57,27 +53,27 @@
   }
 
   function imageCount() {
-    return grid.querySelectorAll(".gallery-item").length;
+    return grid.querySelectorAll(".gallery-item--loaded").length;
   }
 
   function pendingImageCount() {
-    return loadingGrid.querySelectorAll(".gallery-item").length;
+    return grid.querySelectorAll(".gallery-item--pending").length;
   }
 
   function setGalleryLaneCount(value) {
     const count = ["2", "3", "4", "5"].includes(value)
       ? Number(value)
       : (window.matchMedia("(max-width: 760px)").matches ? 2 : 3);
-    const existingCards = [...grid.querySelectorAll(".gallery-item")];
+    const existingItems = [...grid.querySelectorAll(":scope > .gallery-column > *")];
     galleryLanes = Array.from({ length: count }, () => {
       const lane = document.createElement("div");
       lane.className = "gallery-column";
       return lane;
     });
     grid.replaceChildren(...galleryLanes);
-    // Existing cards are only rebalanced when the user changes column count
-    // or the automatic responsive breakpoint changes.
-    existingCards.forEach((card) => getShortestGalleryLane().append(card));
+    // Rebalance all content, including loading cards and skeletons, only when
+    // the user changes column count or the responsive breakpoint changes.
+    existingItems.forEach((item) => getShortestGalleryLane().append(item));
   }
 
   // Custom theme-matched dropdowns; native selects remain as the state bridge.
@@ -188,7 +184,6 @@
     if (!grid) return;
     if (value === "auto" || !["2", "3", "4", "5"].includes(value)) {
       grid.style.removeProperty("--gallery-columns");
-      loadingGrid.style.removeProperty("--gallery-columns");
       if (columnsSelect) columnsSelect.value = "auto";
       setGalleryLaneCount("auto");
       try { localStorage.removeItem(columnsStorageKey); } catch (_) {}
@@ -198,7 +193,6 @@
       return;
     }
     grid.style.setProperty("--gallery-columns", value);
-    loadingGrid.style.setProperty("--gallery-columns", value);
     if (columnsSelect) columnsSelect.value = value;
     setGalleryLaneCount(value);
     try { localStorage.setItem(columnsStorageKey, value); } catch (_) {}
@@ -465,15 +459,17 @@
   function setLoading(value) {
     loading = value;
     if (value) {
-      loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+      grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+      // Keep a generous number of placeholders and distribute each into the
+      // currently shortest lane so loading never forms a detached bottom row.
       for (let i = 0; i < 12; i++) {
         const skeleton = document.createElement("div");
         skeleton.className = "gallery-skeleton-placeholder";
         skeleton.setAttribute("aria-hidden", "true");
-        loadingGrid.append(skeleton);
+        getShortestGalleryLane().append(skeleton);
       }
     } else {
-      loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+      grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
     }
     refreshButton.disabled = value;
     moreButton.disabled = value;
@@ -571,7 +567,7 @@
     img.alt = "插画";
     img.className = "is-loading";
     card.append(img);
-    loadingGrid.append(card);
+    getShortestGalleryLane().append(card);
     if (batch) {
       batch.added++;
       batch.pending++;
@@ -620,12 +616,11 @@
       settled = true;
       clearLoadTimer();
 
-      // Keep the placeholder intact until decoding finishes, then move the card
-      // directly into the shortest measured lane in one task. No API-order queue.
+      // The card already occupies its masonry lane while loading; reveal it in
+      // place after decoding so loaded cards and placeholders stay column-aligned.
       img.classList.remove("is-loading");
       card.classList.remove("gallery-item--pending");
       card.classList.add("gallery-item--loaded");
-      getShortestGalleryLane().append(card);
       empty.hidden = true;
       settleImageBatch(batch, true);
     }, { once: true });
@@ -656,7 +651,7 @@
     if (reset) {
       galleryGeneration++;
       grid.querySelectorAll(".gallery-item").forEach((card) => card.remove());
-      loadingGrid.replaceChildren();
+      grid.querySelectorAll(".gallery-skeleton-placeholder, .gallery-item--pending").forEach((item) => item.remove());
       seen.clear();
       lastRequestUsedFallback = false;
     }
