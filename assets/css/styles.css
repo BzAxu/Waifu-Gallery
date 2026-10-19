@@ -825,6 +825,13 @@ body.gallery-open { overflow: hidden; }
 .gallery-settings-section { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; padding:14px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.025); }
 .gallery-settings-section .gallery-source-label { display:grid; gap:7px; align-items:start; }
 .gallery-settings-section .gallery-source-select { width:100%; max-width:none; }
+.gallery-tag-label { display:grid; gap:7px; align-items:start; color:var(--muted); font-size:12px; }
+.gallery-tag-input { width:100%; min-width:0; min-height:42px; padding:10px 12px; border:1px solid rgba(220,228,255,.15); border-radius:13px; color:var(--text); background:#191d2d; font:inherit; font-size:12px; }
+.gallery-tag-input::placeholder { color:#77809b; }
+.gallery-tag-input:focus-visible { outline:2px solid rgba(181,169,255,.75); outline-offset:2px; }
+.gallery-tag-input:disabled { opacity:.48; cursor:not-allowed; }
+.gallery-tag-apply { min-height:42px; white-space:nowrap; }
+.gallery-tag-hint { grid-column:1/-1; color:var(--muted); font-size:11px; line-height:1.6; overflow-wrap:anywhere; }
 .gallery-settings-section .gallery-refresh { min-height:42px; white-space:nowrap; }
 .gallery-settings-section .gallery-status { grid-column:1/-1; overflow-wrap:anywhere; }
 .gallery-settings-card .gallery-provider-panel { margin:13px 0 0; }
