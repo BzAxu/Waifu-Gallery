@@ -2197,3 +2197,54 @@ body.gallery-sidebar-open { overflow:hidden; }
     animation: none !important;
   }
 }
+
+
+/* Loading placeholders share the real gallery masonry columns and sit at its end. */
+#galleryGrid .gallery-column > .gallery-skeleton-placeholder,
+#galleryGrid .gallery-column > .gallery-item--pending {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 3 / 4;
+  margin: 0 !important;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(190,197,255,.12) !important;
+  border-radius: 15px;
+  background: linear-gradient(110deg, rgba(255,255,255,.025) 8%, rgba(169,155,255,.11) 18%, rgba(138,201,255,.07) 33%, rgba(255,255,255,.025) 48%) !important;
+  background-size: 220% 100% !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+  animation: galleryLoadingSweep 1.35s ease-in-out infinite !important;
+}
+#galleryGrid .gallery-column > .gallery-item--pending > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  visibility: hidden !important;
+}
+#galleryGrid .gallery-column > .gallery-skeleton-placeholder::after,
+#galleryGrid .gallery-column > .gallery-item--pending::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.055) 45%, transparent 70%);
+  transform: translateX(-100%);
+  animation: galleryLoadingShimmer 1.45s ease-in-out infinite;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  #galleryGrid .gallery-column > .gallery-skeleton-placeholder,
+  #galleryGrid .gallery-column > .gallery-item--pending,
+  #galleryGrid .gallery-column > .gallery-skeleton-placeholder::after,
+  #galleryGrid .gallery-column > .gallery-item--pending::after {
+    animation: none !important;
+  }
+}
