@@ -81,6 +81,77 @@
 - `assets/js/gallery.js`：画廊交互逻辑。
 - `functions/api/gallery.js`：服务端图片源请求、状态检测和下载接口，对应 `/api/gallery`。
 
+## 🔐 邀请制账号与云端收藏（内测）
+
+账号功能采用 **Supabase Auth + PostgreSQL**，现有 Cloudflare Pages / Functions 图片 API 保持不变。未登录访客仍可浏览图片；注册必须提交一次性邀请码。登录后可以在图片预览中收藏，收藏记录与账号绑定，并可跨设备查看。
+
+### 1. 创建 Supabase 项目并应用数据库迁移
+
+1. 创建一个 Supabase 项目。
+2. 打开项目的 **SQL Editor**，执行仓库文件 `supabase/migrations/202610200001_invite_accounts_and_favorites.sql` 的完整内容。
+3. 在 **Authentication → URL Configuration** 中设置 Site URL，并把实际访问地址加入 Redirect URLs，例如：
+   - `https://waifu-gallery-bce.pages.dev/`
+   - `https://bzaxu.top/Waifu-Gallery/`
+4. 在 **Authentication → Providers → Email** 中启用邮箱登录和邮件验证。邀请邮件与密码重置邮件需要可用的邮件投递配置；公开内测前应配置自己的 SMTP，并测试投递、链接有效期及垃圾邮件情况。
+5. 为站长账号在 Supabase Dashboard 的 **Authentication → Users** 中手动创建一个用户，并确保邮箱已验证。复制该用户的 UUID，后面用于站长权限校验。不要通过公开注册流程创建站长账号。
+
+### 2. 配置前端公开参数
+
+编辑 `assets/js/auth-config.js`：
+
+- `SUPABASE_URL`：Supabase 项目 URL。
+- `SUPABASE_ANON_KEY`：项目的 publishable/anon key。该值会发送到浏览器，属于公开客户端配置。
+- `SITE_OWNER_USER_ID`：上一步创建的站长用户 UUID。
+
+**不要**把 `service_role`、`sb_secret_`、数据库密码或其他管理密钥放入前端文件、Git 提交、截图或公开聊天。
+
+### 3. 配置 Cloudflare Pages Functions 环境变量
+
+进入 Cloudflare Dashboard → **Workers & Pages → waifu-gallery → Settings → Variables and Secrets**，为生产环境配置：
+
+| 变量名 | 内容 | 是否敏感 |
+| --- | --- | --- |
+| `SUPABASE_URL` | Supabase 项目 URL | 否 |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase 服务端 service-role/secret key | **是，必须作为 Secret** |
+| `SITE_OWNER_USER_ID` | 站长用户 UUID | 否 |
+| `SITE_BASE_URL` | 规范的画廊地址，末尾带斜杠 | 否 |
+
+`SITE_BASE_URL` 应选择一个作为邀请邮件的规范落点，例如 `https://bzaxu.top/Waifu-Gallery/`。这个地址必须同时加入 Supabase Redirect URLs。设置变量后重新部署 Pages 项目，使 Functions 获得新配置。
+
+### 4. 邀请码与注册流程
+
+1. 部署并完成配置后，用站长账号登录画廊。
+2. 在“账号 / 收藏”面板中生成邀请码。每次最多生成 20 个；明文只在生成成功时显示一次，请立即复制保存。
+3. 将邀请码单独发给内测参与者。用户填写邮箱和邀请码后，服务端会预留邀请码并通过 Supabase 发送邀请邮件；成功发送后邀请码即被标记为已使用。
+4. 用户打开邀请邮件链接并设置密码，之后使用邮箱和密码登录。
+5. 站长可以查看最近 100 个邀请码的状态，并撤销未使用的邀请码。已使用的邀请码不能撤销。
+
+邀请码数据库只保存 SHA-256 哈希，不保存明文。服务端通过 Cloudflare Functions 和 Supabase 管理密钥验证邀请码；浏览器无法直接读取或修改邀请码表。若邮件发送失败，系统会尝试释放预留的邀请码；若请求在邮件发送后中断，请站长核对邀请码状态后再决定是否重新发码。
+
+### 5. 收藏和数据安全
+
+- 收藏只保存图片 URL、来源标识、标题和时间，不会把第三方图片复制到 Supabase。
+- `favorites` 表启用 RLS，并按 `auth.uid() = user_id` 限制读取、添加和删除；客户端提交的用户 ID 不会覆盖数据库策略。
+- 收藏列表每次分页读取最多 50 条。
+- 第三方图片 URL 可能过期或失效；失效记录仍可能显示在收藏列表中，需要用户自行取消收藏。
+- 当前旧版本没有确认存在可迁移的本地收藏数据，因此本次实现不自动导入 localStorage 收藏。
+
+### 6. 上线前检查清单
+
+- [ ] Supabase 数据库迁移执行成功。
+- [ ] Cloudflare Functions 的服务端密钥只配置在 Secret 中，未提交到 Git。
+- [ ] `SITE_OWNER_USER_ID` 在前端配置与 Cloudflare 环境变量中完全一致。
+- [ ] Supabase Site URL / Redirect URLs 覆盖实际访问域名及路径。
+- [ ] 邮箱邀请、设置密码、登录、找回密码邮件均完成实际测试。
+- [ ] 普通账号无法读取其他账号的收藏，也无法访问站长邀请码管理 API。
+- [ ] 用一个邀请码成功注册后，再次使用该码会被拒绝。
+- [ ] 未使用邀请码可以撤销；已使用邀请码不能撤销。
+- [ ] Cloudflare Pages 生产部署完成后，分别在 `pages.dev` 和自定义域名上测试图片 API 与账号 API。
+
+**状态提示：** 代码仓库中的实现和 SQL 迁移本身不会自动创建 Supabase 项目、设置 SMTP 或配置 Cloudflare Secrets。完成上述步骤并通过实际测试前，不应将账号系统视为已上线。
+
+---
+
 ## 🌐 图片来源与注意事项
 
 本站展示的图片来自第三方公开图片服务。图片能否加载、更新速度和可用性取决于对应服务；第三方接口可能变更、限流或暂时不可用。自主部署并不意味着这些图片服务由你控制。
