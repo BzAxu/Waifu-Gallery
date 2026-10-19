@@ -21,11 +21,6 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, SITE_OWNER_USER_ID } from "./auth-conf
   const heroBar = document.querySelector(".gallery-hero-bar");
   if (heroBar) heroBar.append(accountButton);
 
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = new URL("../css/auth.css", import.meta.url).href;
-  document.head.append(link);
-
   const dialog = document.createElement("section");
   dialog.className = "gallery-auth-dialog";
   dialog.id = "galleryAuthDialog";
@@ -177,7 +172,8 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, SITE_OWNER_USER_ID } from "./auth-conf
 
   function refreshFavoriteButton() {
     if (!favoriteButton || !lightboxImage) return;
-    const url = lightboxImage.currentSrc || lightboxImage.src;
+    const hasSource = Boolean(lightboxImage.getAttribute("src"));
+    const url = hasSource ? (lightboxImage.currentSrc || lightboxImage.src) : "";
     const isSaved = Boolean(session && url && favorites.has(url));
     favoriteButton.textContent = isSaved ? "★ 已收藏" : "☆ 收藏";
     favoriteButton.classList.toggle("is-saved", isSaved);
@@ -550,6 +546,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, SITE_OWNER_USER_ID } from "./auth-conf
     const download = lightboxCard.querySelector(".gallery-download");
     if (download) lightboxCard.insertBefore(favoriteButton, download);
     else lightboxCard.append(favoriteButton);
+    lightboxImage?.addEventListener("load", refreshFavoriteButton);
     favoriteButton.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
