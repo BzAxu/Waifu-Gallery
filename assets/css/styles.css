@@ -1338,3 +1338,40 @@ button:focus-visible,
     will-change: auto;
   }
 }
+
+
+/* Stable masonry lanes: each lane is independent, so appended images cannot rebalance old cards. */
+.gallery-grid {
+  display: grid !important;
+  grid-template-columns: repeat(var(--gallery-columns, 3), minmax(0, 1fr));
+  align-items: start;
+  column-count: initial !important;
+  column-gap: 15px;
+}
+.gallery-column {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 15px;
+  min-width: 0;
+}
+.gallery-column > .gallery-item {
+  display: block;
+  width: 100%;
+  margin: 0 !important;
+  break-inside: auto;
+}
+@media (max-width: 760px) {
+  .gallery-grid { column-gap: 11px; }
+  .gallery-grid:not([style*="--gallery-columns"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gallery-column { gap: 11px; }
+}
+@media (max-width: 520px) {
+  .gallery-grid { column-gap: 9px; }
+  .gallery-column { gap: 9px; }
+}
+
+/* Loading shimmer uses the same responsive column count as the gallery. */
+@media (max-width: 760px) {
+  .gallery-loading-grid:not([style*="--gallery-columns"]) { column-count: 2; }
+}
