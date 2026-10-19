@@ -58,6 +58,46 @@
     return getShortestLane(galleryLanes);
   }
 
+  // Pick a lane by the height of real cards only, ignoring the decorative
+  // placeholders pinned to the bottom of each lane.
+  function getShortestContentLane() {
+    if (!galleryLanes.length) setGalleryLaneCount("auto");
+    let shortest = galleryLanes[0] || null;
+    let shortestHeight = Infinity;
+    for (const lane of galleryLanes) {
+      const style = window.getComputedStyle(lane);
+      const gap = parseFloat(style.rowGap || style.gap) || 0;
+      let height = 0;
+      let count = 0;
+      for (const item of lane.children) {
+        if (item.classList.contains("gallery-skeleton-placeholder") ||
+            item.classList.contains("gallery-item--pending")) continue;
+        height += item.getBoundingClientRect().height;
+        count++;
+      }
+      if (count > 1) height += gap * (count - 1);
+      if (height < shortestHeight) {
+        shortest = lane;
+        shortestHeight = height;
+      }
+    }
+    return shortest;
+  }
+
+  function insertLoadedCardBeforePlaceholders(card) {
+    const lane = getShortestContentLane();
+    if (!lane) return;
+    const firstPlaceholder = lane.querySelector(":scope > .gallery-skeleton-placeholder");
+    if (firstPlaceholder) lane.insertBefore(card, firstPlaceholder);
+    else lane.append(card);
+  }
+
+  function removePlaceholdersIfSettled() {
+    if (!loading && pendingImageCount() === 0) {
+      grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+    }
+  }
+
   function imageCount() {
     return grid.querySelectorAll(".gallery-item--loaded").length;
   }
@@ -474,7 +514,7 @@
         getShortestGalleryLane()?.append(skeleton);
       }
     } else {
-      grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+      removePlaceholdersIfSettled();
     }
     refreshButton.disabled = value;
     moreButton.disabled = value;
@@ -550,6 +590,7 @@
       else batch.failed++;
     }
     updateGalleryStatus();
+    removePlaceholdersIfSettled();
     if (!imageCount() && !pendingImageCount() && !loading) {
       showNoImagesState();
     }
@@ -621,10 +662,13 @@
       settled = true;
       clearLoadTimer();
 
-      // The pending card already occupies its masonry lane; reveal it in place.
+      // Keep unresolved image elements invisible. Once loaded, place the card
+      // at the end of the real gallery content, immediately above bottom placeholders.
+      card.remove();
       img.classList.remove("is-loading");
       card.classList.remove("gallery-item--pending");
       card.classList.add("gallery-item--loaded");
+      insertLoadedCardBeforePlaceholders(card);
       empty.hidden = true;
       settleImageBatch(batch, true);
     }, { once: true });
