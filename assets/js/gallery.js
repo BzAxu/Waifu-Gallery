@@ -429,9 +429,9 @@
 
   // Modal priority follows the intended visual stack: preview > tag picker > settings.
   function getTopmostOpenDialog() {
-    return [lightbox, tagDialog, settingsDialog].find((dialog) =>
-      dialog && !dialog.hidden && !dialog.classList.contains("is-closing")
-    ) || null;
+    // Keep a closing overlay in the stack until it is actually hidden so a rapid
+    // second Escape cannot close the dialog behind it mid-transition.
+    return [lightbox, tagDialog, settingsDialog].find((dialog) => dialog && !dialog.hidden) || null;
   }
   function getDialogFocusable(dialog) {
     return [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
@@ -446,6 +446,10 @@
   }
   function trapDialogTab(event, dialog) {
     if (event.key !== "Tab" || getTopmostOpenDialog() !== dialog) return;
+    if (dialog.classList.contains("is-closing")) {
+      event.preventDefault();
+      return;
+    }
     const controls = getDialogFocusable(dialog);
     if (!controls.length) {
       event.preventDefault();
