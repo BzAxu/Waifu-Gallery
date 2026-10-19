@@ -175,12 +175,14 @@
     if (!grid) return;
     if (value === "auto" || !["2", "3", "4", "5"].includes(value)) {
       grid.style.removeProperty("--gallery-columns");
+      loadingGrid.style.removeProperty("--gallery-columns");
       if (columnsSelect) columnsSelect.value = "auto";
       setGalleryLaneCount("auto");
       try { localStorage.removeItem(columnsStorageKey); } catch (_) {}
       return;
     }
     grid.style.setProperty("--gallery-columns", value);
+    loadingGrid.style.setProperty("--gallery-columns", value);
     if (columnsSelect) columnsSelect.value = value;
     setGalleryLaneCount(value);
     try { localStorage.setItem(columnsStorageKey, value); } catch (_) {}
