@@ -300,6 +300,47 @@
   // Secondary settings menu for all gallery information and source controls.
   const settingsDialog = document.getElementById("gallerySettingsDialog");
   const settingsOpen = document.getElementById("galleryMenuOpen");
+  const sidebar = document.getElementById("gallerySidebar");
+  const sidebarBackdrop = document.getElementById("gallerySidebarBackdrop");
+  const sidebarCloseButton = document.getElementById("gallerySidebarClose");
+  const sidebarTagsButton = document.getElementById("gallerySidebarTags");
+  const sidebarSettingsButton = document.getElementById("gallerySidebarSettings");
+  let sidebarReturnFocus = null;
+  function openSidebar() {
+    if (!sidebar || !sidebarBackdrop) return;
+    sidebarReturnFocus = document.activeElement;
+    sidebarBackdrop.hidden = false;
+    sidebar.inert = false;
+    sidebar.setAttribute("aria-hidden", "false");
+    settingsOpen?.setAttribute("aria-expanded", "true");
+    document.body.classList.add("gallery-sidebar-open");
+    requestAnimationFrame(() => {
+      sidebar.classList.add("is-open");
+      sidebarBackdrop.classList.add("is-open");
+      sidebarCloseButton?.focus({ preventScroll: true });
+    });
+  }
+  function closeSidebar({ restoreFocus = true } = {}) {
+    if (!sidebar || !sidebarBackdrop || sidebarBackdrop.hidden) return;
+    sidebar.classList.remove("is-open");
+    sidebarBackdrop.classList.remove("is-open");
+    sidebar.inert = true;
+    sidebar.setAttribute("aria-hidden", "true");
+    settingsOpen?.setAttribute("aria-expanded", "false");
+    document.body.classList.remove("gallery-sidebar-open");
+    window.setTimeout(() => {
+      if (!sidebar.classList.contains("is-open")) sidebarBackdrop.hidden = true;
+    }, 360);
+    if (restoreFocus) sidebarReturnFocus?.focus?.({ preventScroll: true });
+  }
+  settingsOpen?.addEventListener("click", openSidebar);
+  sidebarCloseButton?.addEventListener("click", () => closeSidebar());
+  sidebarBackdrop?.addEventListener("click", () => closeSidebar());
+  sidebarTagsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); openTagDialog(); });
+  sidebarSettingsButton?.addEventListener("click", () => { closeSidebar({ restoreFocus: false }); openSettings(); });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && sidebar && !sidebarBackdrop?.hidden) closeSidebar();
+  });
   let settingsTrigger = null;
   function openSettings() {
     if (!settingsDialog) return;
@@ -314,7 +355,7 @@
       if (settingsTrigger && typeof settingsTrigger.focus === "function") settingsTrigger.focus();
     });
   }
-  if (settingsOpen) settingsOpen.addEventListener("click", openSettings);
+
   if (settingsDialog) {
     settingsDialog.querySelectorAll("[data-gallery-settings-close]").forEach((button) => button.addEventListener("click", closeSettings));
     document.addEventListener("keydown", (event) => {
