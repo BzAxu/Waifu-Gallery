@@ -152,8 +152,8 @@ export async function onRequestGet({ request }) {
   const count = Number.isFinite(requestedCount) ? Math.max(1, Math.min(100, requestedCount)) : 100;
   const rawTags = url.searchParams.getAll("tags").join(",");
   const tags = [...new Set(rawTags.split(/[\s,]+/).map((tag) => tag.trim()).filter(Boolean))];
-  if (tags.length > 5 || tags.some((tag) => !/^[a-zA-Z0-9_-]{1,64}$/.test(tag))) {
-    return json({ error: "标签格式无效：每次最多 5 个标签，只能使用字母、数字、下划线或连字符。" }, 400);
+  if (tags.some((tag) => !/^[a-zA-Z0-9_-]{1,64}$/.test(tag))) {
+    return json({ error: "标签格式无效：标签只能使用字母、数字、下划线或连字符。" }, 400);
   }
 
   if (mode === "download") {
