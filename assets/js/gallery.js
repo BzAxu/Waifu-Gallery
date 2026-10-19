@@ -41,14 +41,9 @@
     return prefix + "/api/gallery" + query;
   }
 
-  // Completed images use stable masonry lanes; pending image cards stay in a separate strip below.
-  const loadingGrid = document.createElement("div");
-  loadingGrid.className = "gallery-grid gallery-loading-grid";
-  loadingGrid.setAttribute("aria-hidden", "true");
-  loadingGrid.hidden = true;
-  if (grid) grid.insertAdjacentElement("afterend", loadingGrid);
+  // Loaded images and loading placeholders share the same masonry lanes.
+  // Pending cards are appended at the end and stay in their lane when loaded.
   let galleryLanes = [];
-  let loadingLanes = [];
   let galleryGeneration = 0;
 
   function getShortestLane(lanes) {
@@ -63,22 +58,12 @@
     return getShortestLane(galleryLanes);
   }
 
-  function getShortestLoadingLane() {
-    if (!loadingLanes.length) setGalleryLaneCount(columnsSelect?.value || "auto");
-    return getShortestLane(loadingLanes);
-  }
-
-  function updateLoadingGridVisibility() {
-    const hasLoadingContent = loadingGrid.querySelector(".gallery-item--pending, .gallery-skeleton-placeholder");
-    loadingGrid.hidden = !hasLoadingContent;
-  }
-
   function imageCount() {
     return grid.querySelectorAll(".gallery-item--loaded").length;
   }
 
   function pendingImageCount() {
-    return loadingGrid.querySelectorAll(".gallery-item--pending").length;
+    return grid.querySelectorAll(".gallery-item--pending").length;
   }
 
   function setGalleryLaneCount(value) {
@@ -86,39 +71,15 @@
       ? Number(value)
       : (window.matchMedia("(max-width: 760px)").matches ? 2 : 3);
     const existingItems = [...grid.querySelectorAll(":scope > .gallery-column > *")];
-    const oldLoadingLanes = [...loadingGrid.querySelectorAll(":scope > .gallery-loading-column")];
-    // Read loading cards in their visible order (row by row, left to right)
-    // before rebuilding the lanes, so changing the column count does not scramble them.
-    const existingLoadingItems = [];
-    const maxLoadingRows = oldLoadingLanes.reduce(
-      (max, lane) => Math.max(max, lane.children.length), 0
-    );
-    for (let row = 0; row < maxLoadingRows; row++) {
-      oldLoadingLanes.forEach((lane) => {
-        if (lane.children[row]) existingLoadingItems.push(lane.children[row]);
-      });
-    }
     galleryLanes = Array.from({ length: count }, () => {
       const lane = document.createElement("div");
       lane.className = "gallery-column";
       return lane;
     });
-    loadingLanes = Array.from({ length: count }, () => {
-      const lane = document.createElement("div");
-      lane.className = "gallery-loading-column";
-      return lane;
-    });
     grid.replaceChildren(...galleryLanes);
-    loadingGrid.replaceChildren(...loadingLanes);
-    // Keep the existing loaded-image masonry algorithm untouched. Loading cards
-    // use the same lane count and matching column widths, below the completed gallery.
+    // Reflow every existing card, including pending cards and skeletons, through
+    // the same masonry lanes. No separate loading grid or column bookkeeping.
     existingItems.forEach((item) => getShortestGalleryLane().append(item));
-    existingLoadingItems.forEach((item, index) => loadingLanes[index % count].append(item));
-    // Always set the actual lane count, including responsive "auto" mode.
-    // This prevents the loading strip from falling back to 3 columns while the
-    // gallery itself has switched to 2 columns on small screens.
-    loadingGrid.style.setProperty("--gallery-columns", String(count));
-    updateLoadingGridVisibility();
   }
 
   // Custom theme-matched dropdowns; native selects remain as the state bridge.
@@ -504,18 +465,16 @@
   function setLoading(value) {
     loading = value;
     if (value) {
-      loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
-      // Fifteen fixed portrait placeholders, evenly distributed across the loading lanes.
+      grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
+      // Add temporary portrait placeholders to the bottom of the same masonry lanes.
       for (let i = 0; i < 15; i++) {
         const skeleton = document.createElement("div");
         skeleton.className = "gallery-skeleton-placeholder";
         skeleton.setAttribute("aria-hidden", "true");
-        loadingLanes[i % loadingLanes.length]?.append(skeleton);
+        getShortestGalleryLane()?.append(skeleton);
       }
-      updateLoadingGridVisibility();
     } else {
-      loadingGrid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
-      updateLoadingGridVisibility();
+      grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
     }
     refreshButton.disabled = value;
     moreButton.disabled = value;
@@ -613,8 +572,7 @@
     img.alt = "插画";
     img.className = "is-loading";
     card.append(img);
-    getShortestLoadingLane()?.append(card);
-    updateLoadingGridVisibility();
+    getShortestGalleryLane()?.append(card);
     if (batch) {
       batch.added++;
       batch.pending++;
@@ -634,7 +592,6 @@
       settled = true;
       clearLoadTimer();
       card.remove();
-      updateLoadingGridVisibility();
       if (generation === galleryGeneration) {
         seen.delete(url);
         if (!imageCount() && !pendingImageCount() && !loading) {
@@ -664,12 +621,10 @@
       settled = true;
       clearLoadTimer();
 
-      // Move the finished image above the loading strip into the shortest masonry lane.
+      // The pending card already occupies its masonry lane; reveal it in place.
       img.classList.remove("is-loading");
       card.classList.remove("gallery-item--pending");
       card.classList.add("gallery-item--loaded");
-      getShortestGalleryLane().append(card);
-      updateLoadingGridVisibility();
       empty.hidden = true;
       settleImageBatch(batch, true);
     }, { once: true });
@@ -701,8 +656,6 @@
       galleryGeneration++;
       grid.querySelectorAll(".gallery-item").forEach((card) => card.remove());
       grid.querySelectorAll(".gallery-skeleton-placeholder, .gallery-item--pending").forEach((item) => item.remove());
-      loadingLanes.forEach((lane) => lane.replaceChildren());
-      loadingGrid.hidden = true;
       seen.clear();
       lastRequestUsedFallback = false;
     }
