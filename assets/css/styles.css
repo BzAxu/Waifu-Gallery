@@ -1866,3 +1866,39 @@ body.gallery-sidebar-open{ overflow:hidden; }
     animation: none !important;
   }
 }
+
+
+/* Normalize every close control: consistent hitbox and centered × glyph across devices. */
+.gallery-lightbox-close,
+.gallery-settings-close,
+.gallery-tag-close,
+.gallery-sidebar-close{
+  box-sizing: border-box;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 400;
+  line-height: 1;
+  text-indent: 0;
+  vertical-align: middle;
+}
+.gallery-lightbox-close,
+.gallery-settings-close,
+.gallery-tag-close{
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+}
+.gallery-settings-close{ top: 15px; right: 16px; }
+.gallery-tag-close{ top: 20px; right: 20px; }
+.gallery-sidebar-close{
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  flex: 0 0 40px;
+}
