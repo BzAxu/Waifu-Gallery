@@ -1495,3 +1495,105 @@ body.gallery-tags-open { overflow:hidden; }
  .gallery-tag-options.tag-options-enter .gallery-tag-option,.gallery-tag-selected-chip { animation:none !important; }
  .gallery-tag-option,.gallery-tag-category-tabs button { transition:none !important; }
 }
+
+
+/* Motion polish: keep the gallery expressive without the blur-heavy animations that stutter on mobile GPUs. */
+#galleryGrid .gallery-item--loaded {
+  animation: galleryCardEnter 390ms cubic-bezier(.2,.8,.2,1) both;
+  animation-delay: var(--gallery-reveal-delay, 0ms);
+  will-change: auto;
+}
+@keyframes galleryCardEnter {
+  from { opacity: 0; translate: 0 14px; scale: .985; }
+  72% { opacity: 1; translate: 0 -1px; scale: 1.004; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+
+/* All modal families share one predictable open/close lifecycle. */
+.gallery-tag-dialog.is-opening .gallery-tag-backdrop,
+.gallery-settings-dialog.is-opening .gallery-settings-backdrop,
+.gallery-lightbox.is-opening .gallery-lightbox-backdrop {
+  animation: galleryDialogBackdropIn 220ms ease both;
+}
+.gallery-tag-dialog.is-opening .gallery-tag-card,
+.gallery-settings-dialog.is-opening .gallery-settings-card,
+.gallery-lightbox.is-opening .gallery-lightbox-card {
+  animation: galleryDialogPanelIn 300ms cubic-bezier(.2,.8,.2,1) both;
+}
+.gallery-tag-dialog.is-closing .gallery-tag-backdrop,
+.gallery-settings-dialog.is-closing .gallery-settings-backdrop,
+.gallery-lightbox.is-closing .gallery-lightbox-backdrop {
+  animation: galleryDialogBackdropOut 180ms ease both;
+  pointer-events: none;
+}
+.gallery-tag-dialog.is-closing .gallery-tag-card,
+.gallery-settings-dialog.is-closing .gallery-settings-card,
+.gallery-lightbox.is-closing .gallery-lightbox-card {
+  animation: galleryDialogPanelOut 190ms cubic-bezier(.4,0,1,1) both;
+  pointer-events: none;
+}
+@keyframes galleryDialogBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes galleryDialogBackdropOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes galleryDialogPanelIn {
+  from { opacity: 0; translate: 0 17px; scale: .965; }
+  70% { opacity: 1; translate: 0 -2px; scale: 1.008; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+@keyframes galleryDialogPanelOut {
+  from { opacity: 1; translate: 0 0; scale: 1; }
+  to { opacity: 0; translate: 0 11px; scale: .98; }
+}
+
+/* Tag switching uses a brief stagger; avoid pinning every chip to a GPU layer. */
+.gallery-tag-option { will-change: auto; }
+.gallery-tag-options.tag-options-enter .gallery-tag-option {
+  animation: tagOptionIn 240ms cubic-bezier(.2,.8,.2,1) both;
+}
+.gallery-tag-options.tag-options-enter .gallery-tag-option:nth-child(2n) { animation-delay: 20ms; }
+.gallery-tag-options.tag-options-enter .gallery-tag-option:nth-child(3n) { animation-delay: 40ms; }
+
+/* Keep the shimmer movement on its pseudo-element instead of repainting the entire skeleton gradient. */
+.gallery-loading-grid .gallery-item--pending,
+.gallery-loading-grid .gallery-skeleton-placeholder {
+  animation: none !important;
+  background-size: 100% 100% !important;
+}
+.gallery-loading-grid .gallery-item--pending::after,
+.gallery-loading-grid .gallery-skeleton-placeholder::after {
+  will-change: transform;
+}
+
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .gallery-tag-backdrop,
+  .gallery-settings-backdrop,
+  .gallery-lightbox-backdrop {
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #galleryGrid .gallery-item--loaded,
+  .gallery-tag-dialog.is-opening .gallery-tag-backdrop,
+  .gallery-settings-dialog.is-opening .gallery-settings-backdrop,
+  .gallery-lightbox.is-opening .gallery-lightbox-backdrop,
+  .gallery-tag-dialog.is-opening .gallery-tag-card,
+  .gallery-settings-dialog.is-opening .gallery-settings-card,
+  .gallery-lightbox.is-opening .gallery-lightbox-card,
+  .gallery-tag-dialog.is-closing .gallery-tag-backdrop,
+  .gallery-settings-dialog.is-closing .gallery-settings-backdrop,
+  .gallery-lightbox.is-closing .gallery-lightbox-backdrop,
+  .gallery-tag-dialog.is-closing .gallery-tag-card,
+  .gallery-settings-dialog.is-closing .gallery-settings-card,
+  .gallery-lightbox.is-closing .gallery-lightbox-card,
+  .gallery-loading-grid .gallery-item--pending::after,
+  .gallery-loading-grid .gallery-skeleton-placeholder::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
