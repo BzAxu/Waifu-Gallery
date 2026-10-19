@@ -2067,3 +2067,58 @@ body.gallery-sidebar-open { overflow:hidden; }
     animation: none !important;
   }
 }
+
+
+/* Loading placeholders share the real masonry lanes with loaded images. */
+#galleryGrid .gallery-column > .gallery-item--pending {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: clamp(120px, 20vw, 220px);
+  margin: 0 !important;
+  overflow: hidden;
+  break-inside: avoid;
+  border: 1px solid rgba(190,197,255,.09) !important;
+  border-radius: 15px;
+  background: linear-gradient(110deg, rgba(255,255,255,.025) 8%, rgba(169,155,255,.11) 18%, rgba(138,201,255,.07) 33%, rgba(255,255,255,.025) 48%) !important;
+  background-size: 220% 100% !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+  animation: galleryLoadingSweep 1.35s ease-in-out infinite;
+}
+#galleryGrid .gallery-column > .gallery-item--pending > img { visibility: hidden !important; }
+#galleryGrid .gallery-column > .gallery-item--pending::after,
+#galleryGrid .gallery-column > .gallery-skeleton-placeholder::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.055) 45%, transparent 70%);
+  transform: translateX(-100%);
+  animation: galleryLoadingShimmer 1.45s ease-in-out infinite;
+}
+#galleryGrid .gallery-column > .gallery-skeleton-placeholder {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 100%;
+  height: clamp(120px, 20vw, 220px);
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(190,197,255,.09);
+  border-radius: 15px;
+  background: linear-gradient(110deg, rgba(255,255,255,.025) 8%, rgba(169,155,255,.11) 18%, rgba(138,201,255,.07) 33%, rgba(255,255,255,.025) 48%);
+  background-size: 220% 100%;
+  animation: galleryLoadingSweep 1.35s ease-in-out infinite;
+}
+@media (max-width: 520px) {
+  #galleryGrid .gallery-column > .gallery-item--pending,
+  #galleryGrid .gallery-column > .gallery-skeleton-placeholder { height: clamp(110px, 34vw, 180px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #galleryGrid .gallery-column > .gallery-item--pending,
+  #galleryGrid .gallery-column > .gallery-item--pending::after,
+  #galleryGrid .gallery-column > .gallery-skeleton-placeholder,
+  #galleryGrid .gallery-column > .gallery-skeleton-placeholder::after { animation: none !important; }
+}
