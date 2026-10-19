@@ -256,7 +256,7 @@
     requestAnimationFrame(() => checkAutoLoad());
   }
   if (columnsSelect) {
-    let savedColumns = "5";
+    let savedColumns = "auto";
     try {
       const saved = localStorage.getItem(columnsStorageKey);
       if (saved && ["2", "3", "4", "5"].includes(saved)) savedColumns = saved;
@@ -518,12 +518,25 @@
     loading = value;
     if (value) {
       grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
-      // Add temporary portrait placeholders to the bottom of the same masonry lanes.
-      for (let i = 0; i < 15; i++) {
+      // Fill the visible viewport with placeholders, distributing them explicitly
+      // across lanes. Measuring equal/zero-height lanes during refresh can otherwise
+      // send every placeholder into the first lane before layout has settled.
+      if (!galleryLanes.length) setGalleryLaneCount("auto");
+      const laneCount = Math.max(1, galleryLanes.length);
+      const gridTop = Math.max(0, grid.getBoundingClientRect().top);
+      const visibleHeight = Math.max(window.innerHeight - gridTop, window.innerHeight * 0.75);
+      const gridStyle = window.getComputedStyle(grid);
+      const laneGap = parseFloat(gridStyle.columnGap || gridStyle.gap) || 10;
+      const laneWidth = galleryLanes[0]?.getBoundingClientRect().width ||
+        (grid.clientWidth / laneCount);
+      const placeholderHeight = Math.max(120, laneWidth * 4 / 3);
+      const rowsNeeded = Math.ceil(visibleHeight / (placeholderHeight + laneGap)) + 1;
+      const placeholderCount = Math.max(15, laneCount * rowsNeeded);
+      for (let i = 0; i < placeholderCount; i++) {
         const skeleton = document.createElement("div");
         skeleton.className = "gallery-skeleton-placeholder";
         skeleton.setAttribute("aria-hidden", "true");
-        getShortestGalleryLane()?.append(skeleton);
+        galleryLanes[i % laneCount].append(skeleton);
       }
     } else {
       removePlaceholdersIfSettled();
@@ -602,7 +615,7 @@
     if (!batch || batch.generation !== galleryGeneration ||
         !batch.requestFinished || batch.pending > 0 || loading ||
         batch.refillScheduled || imageCount() >= batch.targetTotal) return;
-    if (batch.refillAttempts >= 3) {
+    if (batch.refillAttempts >= 10) {
       status.textContent = "已显示 " + imageCount() + " 张；部分图片加载失败，可重试补齐";
       return;
     }
@@ -735,7 +748,7 @@
     };
     img.addEventListener("load", onLoad, { once: true });
     img.addEventListener("error", failImage, { once: true });
-    record.timer = window.setTimeout(failImage, 20000);
+    // Do not discard slow images on a fixed timer; only a real error or refresh cancels them.
     img.src = url;
 
     card.addEventListener("click", () => {
