@@ -1316,30 +1316,35 @@ button:focus-visible,
 }
 
 
-/* Dense masonry: native CSS columns pack cards without the empty gaps of independent lanes. */
+/* Stable masonry lanes: each lane is independent, so appended images cannot rebalance old cards. */
 .gallery-grid {
-  display: block !important;
-  column-count: var(--gallery-columns, 3);
-  column-gap: 15px;
-  column-fill: balance;
+  display: grid !important;
+  grid-template-columns: repeat(var(--gallery-columns, 3), minmax(0, 1fr));
   align-items: start;
+
+  column-gap: 15px;
 }
-.gallery-grid > .gallery-item {
-  display: inline-block;
+.gallery-column {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 15px;
+  min-width: 0;
+}
+.gallery-column > .gallery-item {
+  display: block;
   width: 100%;
-  margin: 0 0 15px !important;
-  vertical-align: top;
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
+  margin: 0 !important;
+  break-inside: auto;
 }
 @media (max-width: 760px) {
   .gallery-grid { column-gap: 11px; }
-  .gallery-grid:not([style*="--gallery-columns"]) { column-count: 2; }
-  .gallery-grid > .gallery-item { margin-bottom: 11px !important; }
+  .gallery-grid:not([style*="--gallery-columns"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gallery-column { gap: 11px; }
 }
 @media (max-width: 520px) {
   .gallery-grid { column-gap: 9px; }
-  .gallery-grid > .gallery-item { margin-bottom: 9px !important; }
+  .gallery-column { gap: 9px; }
 }
 
 /* The loading strip follows the same CSS grid columns as the gallery. */
