@@ -16,6 +16,9 @@
   const retryButton = document.getElementById("galleryRetry");
   const moreButton = document.getElementById("galleryMore");
   const sourceSelect = document.getElementById("gallerySourceSelect");
+  const tagInput = document.getElementById("galleryTagInput");
+  const tagApplyButton = document.getElementById("galleryTagApply");
+  const tagHint = document.getElementById("galleryTagHint");
   const columnsSelect = document.getElementById("galleryColumnsSelect");
   const providerStatusList = document.getElementById("galleryProviderStatusList");
   const providerStatusRefresh = document.getElementById("galleryProviderStatusRefresh");
@@ -341,6 +344,8 @@
     moreButton.disabled = value;
     retryButton.disabled = value;
     if (sourceSelect) sourceSelect.disabled = value;
+    if (tagInput) tagInput.disabled = value || !tagFilteringAvailable();
+    if (tagApplyButton) tagApplyButton.disabled = value || !tagFilteringAvailable();
     const sourcePicker = document.querySelector('.gallery-custom-select[data-select-key="source"]');
     if (sourcePicker) {
       const trigger = sourcePicker.querySelector(".gallery-custom-select-trigger");
@@ -540,7 +545,10 @@
         if (remaining <= 0) break;
         attempts++;
         const requestedCount = Math.min(100, remaining);
-        const response = await fetch(galleryApiUrl("?source=" + encodeURIComponent(source) + "&count=" + requestedCount), {
+        const params = new URLSearchParams({ source, count: String(requestedCount) });
+        const requestedTags = tagInput && tagFilteringAvailable() ? tagInput.value.trim() : "";
+        if (requestedTags) params.set("tags", requestedTags);
+        const response = await fetch(galleryApiUrl("?" + params.toString()), {
           method: "GET",
           headers: { "Accept": "application/json" },
           cache: "no-store"
@@ -691,11 +699,39 @@
     }
   });
 
+  function tagFilteringAvailable() {
+    return !sourceSelect || ["auto", "nekosapi", "safebooru"].includes(sourceSelect.value);
+  }
+  function updateTagFilterAvailability() {
+    const available = tagFilteringAvailable();
+    if (tagInput) tagInput.disabled = loading || !available;
+    if (tagApplyButton) tagApplyButton.disabled = loading || !available;
+    if (tagHint) {
+      tagHint.textContent = available
+        ? (sourceSelect && sourceSelect.value === "auto"
+          ? "自动模式只会查询支持标签的接口；多个标签用逗号分隔，最多 5 个。"
+          : sourceSelect && sourceSelect.value === "safebooru"
+            ? "Danbooru 标签使用下划线格式，例如 brown_hair；默认限制为 G 级图片。"
+            : "Nekos API 支持标签组合查询，默认限制为 safe 评级；多个标签用逗号分隔。")
+        : "当前图片源不支持标签筛选。切换到自动模式、Nekos API 或 Danbooru 即可使用。";
+    }
+  }
   refreshButton.addEventListener("click", () => {
     lastRequestUsedFallback = false;
     loadImages({ reset: true, targetCount: 100 });
   });
-  if (sourceSelect) sourceSelect.addEventListener("change", () => loadImages({ reset: true, targetCount: 100 }));
+  if (sourceSelect) sourceSelect.addEventListener("change", () => {
+    updateTagFilterAvailability();
+    loadImages({ reset: true, targetCount: 100 });
+  });
+  if (tagApplyButton) tagApplyButton.addEventListener("click", () => loadImages({ reset: true, targetCount: 100 }));
+  if (tagInput) tagInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !tagInput.disabled) {
+      event.preventDefault();
+      loadImages({ reset: true, targetCount: 100 });
+    }
+  });
+  updateTagFilterAvailability();
   if (providerStatusRefresh) providerStatusRefresh.addEventListener("click", checkProviderStatus);
   retryButton.addEventListener("click", () => loadImages({ reset: imageCount() === 0, targetCount: imageCount() === 0 ? 100 : 20 }));
   moreButton.addEventListener("click", () => loadImages({ targetCount: 20 }));
