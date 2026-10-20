@@ -1082,6 +1082,7 @@
   }
 
   function setDownloadTaskStatus(task, status) {
+    task.status = status;
     if (task.statusElement) task.statusElement.textContent = `${task.urls.length} 张图片 · ${status}`;
     if (task.element) {
       task.element.classList.toggle("is-active", status === "正在处理");
@@ -1162,6 +1163,7 @@
     if (downloadManagerSummary) downloadManagerSummary.textContent = `已加入 ${urls.length} 张图片，分为 ${tasks.length} 个 ZIP 任务。`;
     if (downloadManagerCancel) downloadManagerCancel.disabled = false;
     let completedImages = 0;
+    let processedImages = 0;
     let failedImages = 0;
     let completedTasks = 0;
 
@@ -1185,7 +1187,7 @@
             });
             if (!response.ok) throw new Error("HTTP " + response.status);
             const blob = await readImageResponse(response, favoriteDownloadController.signal, (received, total) => {
-              setDownloadProgress(completedImages, urls.length, received, total, 0);
+              setDownloadProgress(processedImages, urls.length, received, total, 0);
               file.state.textContent = total > 0
                 ? `下载中 · ${Math.min(100, Math.round(received / total * 100))}%`
                 : `接收中 · ${formatDownloadBytes(received)}`;
@@ -1205,7 +1207,8 @@
             failedImages++;
             file.state.textContent = "下载失败";
           }
-          setDownloadProgress(completedImages, urls.length, 0, 0, 0);
+          processedImages++;
+          setDownloadProgress(processedImages, urls.length, 0, 0, 0);
           if (favoritesCount) favoritesCount.textContent = `ZIP 下载中：${completedImages} / ${urls.length} 张`;
         }
         if (favoriteDownloadCancelled) {
