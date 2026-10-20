@@ -2187,3 +2187,23 @@ body.gallery-sidebar-open{ overflow:hidden; }
     transform: none !important;
   }
 }
+
+
+/* Reserve card geometry without fetching the image until it nears the viewport. */
+#galleryGrid .gallery-item--pending .gallery-item-preview {
+  display: block !important;
+  width: 100% !important;
+  aspect-ratio: 3 / 4;
+  background: linear-gradient(145deg, rgba(169,155,255,.11), rgba(138,201,255,.07));
+  cursor: progress;
+}
+#galleryGrid .gallery-item--pending .gallery-item-preview > img {
+  visibility: hidden;
+}
+#galleryGrid .gallery-item--pending .gallery-favorite-toggle {
+  opacity: 0;
+  pointer-events: none;
+}
+#galleryGrid .gallery-item--pending.is-in-view .gallery-favorite-toggle {
+  opacity: 1;
+}
