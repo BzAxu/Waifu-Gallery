@@ -24,6 +24,25 @@ const PROVIDERS = [
     parse: (data) => Array.isArray(data.results) ? data.results.map((item) => item.url) : []
   },
   {
+    id: "nekosmoe",
+    name: "Nekos.moe",
+    kind: "SFW 动漫图片 · 随机",
+    url: "https://nekos.moe/api/v1/random/image?nsfw=false&count=10",
+    headers: { "Accept": "application/json", "User-Agent": "Waifu-Gallery/1.0 (public SFW image gallery)" },
+    batchSize: 10,
+    parse: (data) => Array.isArray(data.images)
+      ? data.images.filter((item) => item && typeof item.id === "string").map((item) => "https://nekos.moe/image/" + encodeURIComponent(item.id) + ".jpg")
+      : []
+  },
+  {
+    id: "nekoslife",
+    name: "Nekos.life",
+    kind: "SFW 随机动漫图",
+    url: "https://nekos.life/api/v2/img/neko",
+    headers: { "Accept": "application/json" },
+    parse: (data) => data && typeof data.url === "string" ? [data.url] : []
+  },
+  {
     id: "icatw",
     name: "Anime Image Gateway",
     kind: "多源随机动漫图",
@@ -33,11 +52,11 @@ const PROVIDERS = [
   },
   {
     id: "waifuim",
-    name: "Waifu.im（旧源）",
-    kind: "旧服务 · 计划停运",
-    retired: true,
+    name: "Waifu.im",
+    kind: "SFW 随机动漫图 · 安全评级",
     url: "https://api.waifu.im/images?IsNsfw=False&PageSize=10",
     headers: { "Accept": "application/json" },
+    batchSize: 10,
     parse: (data) => Array.isArray(data.items) ? data.items.map((item) => item.url) : []
   },
   {
