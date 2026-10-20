@@ -187,8 +187,8 @@
   }
 
   // A refresh invalidates previous image requests and releases their timers.
-  // Unresolved images are deliberately kept off-DOM, so they can never disturb
-  // the masonry lanes or be mistaken for visible gallery cards.
+  // Pending cards enter their masonry lane immediately, while native lazy loading
+  // defers network work until the image approaches the viewport.
   function cancelPendingImages() {
     for (const record of pendingImages) {
       if (typeof record.cancel === "function") record.cancel();
@@ -1701,7 +1701,7 @@
     previewButton.dataset.sourceUrl = url;
     previewButton.dataset.title = "随机插画";
     const img = document.createElement("img");
-    img.loading = "eager";
+    img.loading = "lazy";
     img.decoding = "async";
     img.alt = "插画";
     img.className = "is-loading";
@@ -1721,6 +1721,17 @@
 
     card.dataset.sourceUrl = url;
     card.dataset.title = "随机插画";
+
+    // Attach the pending card before assigning src so native loading="lazy"
+    // can defer off-screen image requests instead of downloading the whole batch.
+    const pendingLane = getShortestContentLane();
+    if (pendingLane) {
+      const firstPlaceholder = pendingLane.querySelector(":scope > .gallery-skeleton-placeholder");
+      if (firstPlaceholder) pendingLane.insertBefore(card, firstPlaceholder);
+      else pendingLane.append(card);
+      if (galleryRevealObserver) galleryRevealObserver.observe(card);
+      else card.classList.add("is-card-visible");
+    }
 
     const record = {
       generation,
@@ -1779,9 +1790,9 @@
       img.classList.remove("is-loading");
       card.classList.add("gallery-item--loaded");
 
-      // Insert the successful image among real cards, immediately above the
-      // decorative placeholders that are temporarily pinned to the bottom.
-      insertLoadedCardBeforePlaceholders(card);
+      // The pending card is already in its lane. Only insert here as a
+      // fallback if another action removed it before the image finished loading.
+      if (!card.isConnected) insertLoadedCardBeforePlaceholders(card);
       empty.hidden = true;
       settleImageBatch(batch, true);
     };
