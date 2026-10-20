@@ -1001,7 +1001,9 @@
   function renderRoute(route, { updateHistory = false, replace = false } = {}) {
     const nextRoute = route === "gallery" || route === "favorites" ? route : "home";
     if (currentRoute === "favorites" && nextRoute !== "favorites") {
-      favoritesRenderDirty = true;
+      // Keep a completed list cached when simply returning to the gallery.
+      // Only rebuild if leaving cancels an unfinished batch render.
+      if (favoritesRenderFrame) favoritesRenderDirty = true;
       cancelFavoriteRender();
     }
     currentRoute = nextRoute;
