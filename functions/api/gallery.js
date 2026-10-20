@@ -224,7 +224,7 @@ export async function onRequestGet({ request }) {
   if (tags.some((tag) => !validTag(tag)) || blockedTags.some((tag) => !validTag(tag))) {
     return json({ error: "标签格式无效：标签只能使用字母、数字、下划线或连字符。" }, 400);
   }
-  if (blockedTags.length && !["auto", "safebooru", "waifuim"].includes(selected)) {
+  if (blockedTags.length && !["auto", "safebooru", "waifuim", "nekosapi"].includes(selected)) {
     return json({ error: "屏蔽标签仅支持自动模式或 Safebooru 图片源。请切换图片源后重试。" }, 400);
   }
 
