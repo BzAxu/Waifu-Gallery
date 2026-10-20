@@ -61,9 +61,12 @@
           </div>
         </div>
         <div class="gallery-favorites-toolbar" aria-label="收藏夹操作">
-          <button class="button" id="galleryFavoritesDownloadAll" type="button">↓ 下载 ZIP</button>
+          <button class="button" id="galleryFavoritesDownloadAll" type="button">↓ 下载全部</button>
           <button class="button" id="galleryFavoritesDownloadQueue" type="button" hidden>下载列表</button>
           <button class="button" id="galleryFavoritesMultiSelect" type="button" aria-pressed="false">多选</button>
+          <button class="button" id="galleryFavoritesSelectAll" type="button" disabled>全选</button>
+          <button class="button" id="galleryFavoritesMarkDownloaded" type="button" disabled>标记已下载</button>
+          <button class="button" id="galleryFavoritesClearDownloadTag" type="button" disabled>清除下载标记</button>
           <button class="button" id="galleryFavoritesDownloadSelected" type="button" disabled>下载所选 ZIP</button>
           <button class="button" id="galleryFavoritesClearSelected" type="button" disabled>清除</button>
           <button class="button gallery-favorites-danger" id="galleryFavoritesClearAll" type="button">清除全部</button>
@@ -77,6 +80,17 @@
         </div>
         <div class="gallery-favorites-grid" id="galleryFavoritesGrid" aria-label="本地收藏图片列表" hidden></div>
       </section>
+  </div>
+</section>
+<section class="gallery-download-confirm" id="galleryDownloadConfirm" role="dialog" aria-modal="true" aria-labelledby="galleryDownloadConfirmTitle" hidden>
+  <button class="gallery-download-confirm-backdrop" type="button" data-download-confirm-close aria-label="取消下载"></button>
+  <div class="gallery-download-confirm-card">
+    <div class="gallery-settings-eyebrow">DOWNLOAD / CONFIRM</div>
+    <h2 id="galleryDownloadConfirmTitle">下载收藏</h2>
+    <p class="gallery-settings-description">确认后将按每包最多 50 张图片生成 ZIP。</p>
+    <label class="gallery-download-confirm-option"><input id="galleryDownloadConfirmExcludeDownloaded" type="checkbox" checked> 跳过已下载</label>
+    <p class="gallery-download-confirm-summary" id="galleryDownloadConfirmSummary" role="status" aria-live="polite"></p>
+    <div class="gallery-download-confirm-actions"><button class="button button-secondary" id="galleryDownloadConfirmCancel" type="button">取消</button><button class="button" id="galleryDownloadConfirmStart" type="button">开始下载</button></div>
   </div>
 </section>
 <section class="gallery-tag-dialog" id="galleryTagDialog" role="dialog" aria-modal="true" aria-labelledby="galleryTagTitle" hidden>
