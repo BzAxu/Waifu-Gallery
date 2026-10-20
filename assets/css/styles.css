@@ -1948,6 +1948,23 @@ body.gallery-sidebar-open{ overflow:hidden; }
   overflow:hidden;
   isolation:isolate;
 }
+/* Keep the open settings dropdown above the following settings sections. */
+.gallery-settings-section:has(.gallery-custom-select.is-open){
+  position:relative;
+  z-index:80;
+}
+.gallery-settings-section .gallery-custom-select.is-open{
+  position:relative;
+  z-index:81;
+}
+.gallery-settings-section .gallery-custom-select-menu{
+  z-index:82;
+  background:rgba(16,20,36,.48);
+  border-color:rgba(207,213,255,.32);
+  box-shadow:0 18px 42px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.12);
+  backdrop-filter:blur(30px) saturate(190%);
+  -webkit-backdrop-filter:blur(30px) saturate(190%);
+}
 #galleryGrid .gallery-favorite-toggle{
   position:absolute!important;
   right:9px!important;
@@ -1959,7 +1976,7 @@ body.gallery-sidebar-open{ overflow:hidden; }
   transform:translateY(-2px);
 }
 #galleryGrid .gallery-favorite-toggle.is-favorite{
-  background:rgba(51,21,45,.9)!important;
+  background:rgba(51,21,45,.42)!important;
 }
 #galleryGrid .gallery-item-preview > img{
   display:block!important; width:100%!important; height:auto!important; min-height:0!important;
@@ -1970,13 +1987,13 @@ body.gallery-sidebar-open{ overflow:hidden; }
   position:absolute!important; z-index:10; right:9px; bottom:9px; display:grid!important; place-items:center;
   width:40px; height:40px; min-width:40px; min-height:40px; padding:9px!important; box-sizing:border-box;
   border:1px solid rgba(255,255,255,.42)!important; border-radius:14px!important;
-  color:#fff; background:rgba(15,17,31,.86)!important; box-shadow:0 7px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.24)!important;
-  backdrop-filter:blur(18px) saturate(175%); -webkit-backdrop-filter:blur(18px) saturate(175%);
+  color:#fff; background:rgba(15,17,31,.24)!important; box-shadow:0 7px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.24)!important;
+  backdrop-filter:blur(30px) saturate(200%); -webkit-backdrop-filter:blur(30px) saturate(200%);
   cursor:pointer; line-height:1; transition:transform .2s ease,background .2s ease,color .2s ease,border-color .2s ease;
 }
 .gallery-favorite-toggle svg{ display:block; width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-.gallery-favorite-toggle:hover{ transform:translateY(-2px); border-color:rgba(255,145,195,.75)!important; background:rgba(31,20,42,.9)!important; }
-.gallery-favorite-toggle.is-favorite{ color:#ff9fc8; background:rgba(51,21,45,.86)!important; border-color:rgba(255,159,200,.6)!important; }
+.gallery-favorite-toggle:hover{ transform:translateY(-2px); border-color:rgba(255,145,195,.75)!important; background:rgba(31,20,42,.42)!important; }
+.gallery-favorite-toggle.is-favorite{ color:#ff9fc8; background:rgba(51,21,45,.38)!important; border-color:rgba(255,159,200,.6)!important; }
 .gallery-favorite-toggle.is-favorite svg{ fill:currentColor; }
 .gallery-favorite-toggle[hidden]{ display:none!important; }
 .gallery-favorite-toggle:focus-visible{ outline:2px solid #ffc2db; outline-offset:2px; }
