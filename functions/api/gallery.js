@@ -7,6 +7,7 @@ const PROVIDERS = [
     headers: { "Accept": "application/json" },
     batchSize: 10,
     supportsTags: true,
+    supportsBlockedTags: true,
     buildUrl: (tags) => {
       const target = new URL("https://api.nekosapi.com/v4/images/random?limit=10&rating=safe");
       tags.forEach((tag) => target.searchParams.append("tags", tag));
