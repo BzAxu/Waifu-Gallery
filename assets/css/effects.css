@@ -242,8 +242,8 @@ footer {
 }
 /* Explicit overlay order. The sidebar belongs to the gallery-page stacking context;
    modal dialogs are body-level siblings and must sit above the page. */
-.gallery-sidebar-backdrop { z-index: 8; }
-.gallery-sidebar { z-index: 9; }
+.gallery-sidebar-backdrop { z-index: 100; }
+.gallery-sidebar { z-index: 101; }
 .gallery-settings-dialog { z-index: 120; }
 .gallery-tag-dialog { z-index: 130; }
 .gallery-lightbox { z-index: 140; }
