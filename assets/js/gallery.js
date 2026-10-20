@@ -1669,6 +1669,28 @@
     refreshAutoLoadAfterImages();
   }
 
+  // Reveal successful image cards only when they reach the viewport.
+  // This observer never participates in image loading or masonry placement.
+  const galleryScrollRevealReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const galleryScrollRevealObserver = !galleryScrollRevealReducedMotion && ("IntersectionObserver" in window)
+    ? new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("is-card-visible");
+          galleryScrollRevealObserver.unobserve(entry.target);
+        });
+      }, { threshold: 0.12, rootMargin: "0px 0px -3% 0px" })
+    : null;
+
+  function revealGalleryCardOnScroll(card) {
+    card.classList.add("gallery-scroll-reveal");
+    if (!galleryScrollRevealObserver) {
+      card.classList.add("is-card-visible");
+      return;
+    }
+    galleryScrollRevealObserver.observe(card);
+  }
+
   function addImage(url, sourceName = "图片源", batch = null) {
     if (!url || seen.has(url)) return false;
     seen.add(url);
@@ -1768,6 +1790,7 @@
       // Insert the successful image among real cards, immediately above the
       // decorative placeholders that are temporarily pinned to the bottom.
       insertLoadedCardBeforePlaceholders(card);
+      revealGalleryCardOnScroll(card);
       empty.hidden = true;
       settleImageBatch(batch, true);
     };
