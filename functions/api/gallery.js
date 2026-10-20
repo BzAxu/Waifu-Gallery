@@ -64,14 +64,15 @@ const PROVIDERS = [
     headers: { "Accept": "application/json", "User-Agent": "Waifu-Gallery/1.0 (public safe image gallery)" },
     batchSize: 20,
     supportsTags: true,
-    buildUrl: (tags) => {
+    supportsTagExclusions: true,
+    buildUrl: (tags, withoutTags = []) => {
       const target = new URL("https://safebooru.org/index.php");
       target.searchParams.set("page", "dapi");
       target.searchParams.set("s", "post");
       target.searchParams.set("q", "index");
       target.searchParams.set("json", "1");
       // Random ordering prevents every refresh from returning Safebooru's same first page.
-      target.searchParams.set("tags", ["rating:safe", "order:random", ...tags].join(" "));
+      target.searchParams.set("tags", ["rating:safe", "order:random", ...tags, ...withoutTags.map((tag) => "-" + tag)].join(" "));
       target.searchParams.set("limit", "20");
       return target.toString();
     },
@@ -86,12 +87,12 @@ function json(body, status = 200) {
   return Response.json(body, { status, headers: CACHE_HEADERS });
 }
 
-async function requestProvider(provider, tags = []) {
+async function requestProvider(provider, tags = [], withoutTags = []) {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const requestUrl = provider.buildUrl ? provider.buildUrl(tags) : provider.url;
+    const requestUrl = provider.buildUrl ? provider.buildUrl(tags, withoutTags) : provider.url;
     const response = await fetch(requestUrl, {
       method: "GET",
       headers: provider.headers,
@@ -128,7 +129,7 @@ async function requestProvider(provider, tags = []) {
   }
 }
 
-async function collectProviderImages(provider, count, tags = []) {
+async function collectProviderImages(provider, count, tags = [], withoutTags = []) {
   const results = [];
   const maxRequests = Math.min(count, provider.batchSize ? 100 : 20);
   // Request in small parallel groups to avoid overwhelming public APIs.
@@ -136,7 +137,7 @@ async function collectProviderImages(provider, count, tags = []) {
   const callsNeeded = Math.ceil(maxRequests / perCall);
   for (let offset = 0; offset < callsNeeded && results.length < maxRequests; offset += 5) {
     const groupSize = Math.min(5, callsNeeded - offset);
-    const group = await Promise.all(Array.from({ length: groupSize }, () => requestProvider(provider, tags)));
+    const group = await Promise.all(Array.from({ length: groupSize }, () => requestProvider(provider, tags, withoutTags)));
     for (const result of group) {
       if (result.ok && Array.isArray(result.files)) results.push(...result.files);
     }
@@ -152,8 +153,11 @@ export async function onRequestGet({ request }) {
   const requestedCount = Number.parseInt(url.searchParams.get("count") || "100", 10);
   const count = Number.isFinite(requestedCount) ? Math.max(1, Math.min(100, requestedCount)) : 100;
   const rawTags = url.searchParams.getAll("tags").join(",");
-  const tags = [...new Set(rawTags.split(/[\s,]+/).map((tag) => tag.trim()).filter(Boolean))];
-  if (tags.some((tag) => !/^[a-zA-Z0-9_-]{1,64}$/.test(tag))) {
+  const tags = [...new Set(rawTags.split(/[\\s,]+/).map((tag) => tag.trim()).filter(Boolean))];
+  const rawWithoutTags = url.searchParams.getAll("without_tags").join(",");
+  const withoutTags = [...new Set(rawWithoutTags.split(/[\\s,]+/).map((tag) => tag.trim()).filter(Boolean))];
+  const validTag = (tag) => /^[a-zA-Z0-9_-]{1,64}$/.test(tag);
+  if (tags.some((tag) => !validTag(tag)) || withoutTags.some((tag) => !validTag(tag))) {
     return json({ error: "标签格式无效：标签只能使用字母、数字、下划线或连字符。" }, 400);
   }
 
@@ -274,8 +278,11 @@ export async function onRequestGet({ request }) {
   if (tags.length && selected !== "auto" && (!selectedProvider || !selectedProvider.supportsTags)) {
     return json({ error: "当前图片源不支持标签筛选。请选择自动模式、Nekos API 或 Safebooru。" }, 400);
   }
+  if (withoutTags.length && selected !== "auto" && (!selectedProvider || !selectedProvider.supportsTagExclusions)) {
+    return json({ error: "当前图片源不支持标签屏蔽。请选择自动模式或 Safebooru。" }, 400);
+  }
   const candidates = selected === "auto"
-    ? [...activeProviders].filter((provider) => !tags.length || provider.supportsTags)
+    ? [...activeProviders].filter((provider) => (!tags.length || provider.supportsTags) && (!withoutTags.length || provider.supportsTagExclusions))
         .sort((a, b) => (b.batchSize || 0) - (a.batchSize || 0))
     : activeProviders.filter((provider) => provider.id === selected);
 
@@ -284,7 +291,7 @@ export async function onRequestGet({ request }) {
   const failures = [];
   for (const provider of candidates) {
     const started = Date.now();
-    const files = await collectProviderImages(provider, count, tags);
+    const files = await collectProviderImages(provider, count, tags, withoutTags);
     if (files.length) {
       return json({
         files,
