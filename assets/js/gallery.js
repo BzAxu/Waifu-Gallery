@@ -2191,7 +2191,7 @@
     selectedTags = [...new Set((tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter((tag) => /^[\p{L}\p{N}_-]{1,64}$/u.test(tag)))];
   }
   function activeTagList() { return tagSelectionMode === "block" ? blockedTags : selectedTags; }
-  function blockingTagsAvailable() { return !sourceSelect || ["auto", "safebooru"].includes(sourceSelect.value); }
+  function blockingTagsAvailable() { return !sourceSelect || ["auto", "safebooru", "waifuim"].includes(sourceSelect.value); }
   function syncTagModeButtons() {
     if (tagModeIncludeButton) {
       tagModeIncludeButton.classList.toggle("is-active", tagSelectionMode === "include");
