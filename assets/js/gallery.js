@@ -1166,6 +1166,7 @@
     let processedImages = 0;
     let failedImages = 0;
     let completedTasks = 0;
+    let fatalError = "";
 
     try {
       const JSZip = await loadJSZip();
@@ -1248,8 +1249,12 @@
       }
     } catch (error) {
       console.error("Unable to initialize ZIP download:", error);
-      if (downloadManagerSummary) downloadManagerSummary.textContent = error.message || "ZIP 初始化失败";
-      showToast(error.message || "ZIP 组件加载失败");
+      fatalError = error.message || "ZIP 初始化失败";
+      for (const task of tasks) {
+        if (!task.status || task.status === "等待中") setDownloadTaskStatus(task, "失败 · ZIP 初始化失败");
+      }
+      if (downloadManagerSummary) downloadManagerSummary.textContent = fatalError;
+      showToast(fatalError);
     } finally {
       downloadingFavorites = false;
       favoriteDownloadController = null;
@@ -1258,9 +1263,11 @@
       for (const task of tasks) {
         if (favoriteDownloadCancelled && task.status === "等待中") setDownloadTaskStatus(task, "已取消");
       }
-      const summary = favoriteDownloadCancelled
-        ? `已取消：已生成 ${completedTasks} 个 ZIP，失败 ${failedImages} 张`
-        : `任务结束：生成 ${completedTasks} 个 ZIP，下载失败 ${failedImages} 张`;
+      const summary = fatalError
+        ? `任务未完成：${fatalError}`
+        : favoriteDownloadCancelled
+          ? `已取消：已生成 ${completedTasks} 个 ZIP，失败 ${failedImages} 张`
+          : `任务结束：生成 ${completedTasks} 个 ZIP，下载失败 ${failedImages} 张`;
       if (downloadManagerSummary) downloadManagerSummary.textContent = summary;
       if (favoritesCount) favoritesCount.textContent = summary;
       if (downloadManagerCancel) downloadManagerCancel.textContent = "已结束";
