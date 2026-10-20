@@ -60,6 +60,23 @@
   let galleryLanes = [];
   let galleryGeneration = 0;
 
+  // Defer entrance effects until a card approaches the viewport. This avoids
+  // running blur/transform animations for dozens of off-screen thumbnails.
+  const galleryCardObserver = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add("is-in-view");
+          galleryCardObserver.unobserve(entry.target);
+        }
+      }, { root: null, rootMargin: "220px 0px", threshold: 0.01 })
+    : null;
+
+  function observeGalleryCard(card) {
+    if (galleryCardObserver) galleryCardObserver.observe(card);
+    else card.classList.add("is-in-view");
+  }
+
   function getShortestLane(lanes) {
     if (!lanes.length) return null;
     return lanes.reduce((shortest, current) =>
@@ -135,6 +152,7 @@
     const firstPlaceholder = lane.querySelector(":scope > .gallery-skeleton-placeholder");
     if (firstPlaceholder) lane.insertBefore(card, firstPlaceholder);
     else lane.append(card);
+    observeGalleryCard(card);
     animatePlaceholderReflow(beforeRects);
   }
 
@@ -935,7 +953,7 @@
         history[replace ? "replaceState" : "pushState"]({ view: currentRoute }, "", url);
       }
     });
-    if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 100 });
+    if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 24 });
     if (currentRoute === "favorites") renderFavorites();
     if (currentRoute !== "home") checkProviderStatus();
   }
@@ -1061,7 +1079,7 @@
       requestAnimationFrame(() => {
         if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" || lastBatchAdded <= 0) return;
         if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-          loadImages({ targetCount: 100 });
+          loadImages({ targetCount: 24 });
         }
       });
     }
@@ -1625,7 +1643,7 @@
   if (tagConfirmButton) tagConfirmButton.addEventListener("click", () => {
     if (tagInput) tagInput.value = selectedTags.join(",");
     if (tagHint) tagHint.textContent = selectedTags.length ? "当前标签：" + selectedTags.map(tagLabel).join("、") : "尚未选择标签。可按类别打开标签选择器。";
-    closeTagDialog(); loadImages({ reset: true, targetCount: 100 });
+    closeTagDialog(); loadImages({ reset: true, targetCount: 24 });
   });
 
   function tagFilteringAvailable() {
@@ -1643,23 +1661,23 @@
   }
   refreshButton.addEventListener("click", () => {
     lastRequestUsedFallback = false;
-    loadImages({ reset: true, targetCount: 100 });
+    loadImages({ reset: true, targetCount: 24 });
   });
   if (sourceSelect) sourceSelect.addEventListener("change", () => {
     updateTagFilterAvailability();
-    loadImages({ reset: true, targetCount: 100 });
+    loadImages({ reset: true, targetCount: 24 });
   });
-  if (tagApplyButton) tagApplyButton.addEventListener("click", () => loadImages({ reset: true, targetCount: 100 }));
+  if (tagApplyButton) tagApplyButton.addEventListener("click", () => loadImages({ reset: true, targetCount: 24 }));
   if (tagInput) tagInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !tagInput.disabled) {
       event.preventDefault();
-      loadImages({ reset: true, targetCount: 100 });
+      loadImages({ reset: true, targetCount: 24 });
     }
   });
   updateTagFilterAvailability();
   if (providerStatusRefresh) providerStatusRefresh.addEventListener("click", checkProviderStatus);
   retryButton.addEventListener("click", () => loadImages({ reset: imageCount() === 0, targetCount: imageCount() === 0 ? 100 : 20 }));
-  moreButton.addEventListener("click", () => loadImages({ targetCount: 100 }));
+  moreButton.addEventListener("click", () => loadImages({ targetCount: 24 }));
 
   // Reliable infinite scroll: check the sentinel on scroll, resize, and after every batch.
   // This also fills short screens automatically without depending on observer re-entry.
@@ -1673,7 +1691,7 @@
       if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" ||
           lastBatchAdded <= 0 || !moreButton) return;
       if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-        loadImages({ targetCount: 100 });
+        loadImages({ targetCount: 24 });
       }
     });
   }
