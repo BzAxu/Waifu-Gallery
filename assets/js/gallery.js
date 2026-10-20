@@ -32,6 +32,7 @@
   const lightboxImage = document.getElementById("galleryLightboxImage");
   const lightboxTitle = document.getElementById("galleryLightboxTitle");
   const sourceLink = document.getElementById("galleryPixivLink");
+  const favoritesDialog = document.getElementById("galleryFavoritesDialog");
   const favoritesView = document.getElementById("galleryFavoritesView");
   const favoritesGrid = document.getElementById("galleryFavoritesGrid");
   const favoritesEmpty = document.getElementById("galleryFavoritesEmpty");
@@ -44,6 +45,7 @@
   const favoriteClearSelectedButton = document.getElementById("galleryFavoritesClearSelected");
   const favoriteClearAllButton = document.getElementById("galleryFavoritesClearAll");
   const favoriteBackButton = document.getElementById("galleryFavoritesBack");
+  const favoriteModalCloseButton = document.getElementById("galleryFavoritesModalClose");
   const favoriteEmptyBackButton = document.getElementById("galleryFavoritesEmptyBack");
   const toast = document.getElementById("toast");
   if (!homePage || !galleryPage || !grid) return;
@@ -353,7 +355,7 @@
     if (!dialog) return;
     const previousCleanup = dialogCloseCleanup.get(dialog);
     if (previousCleanup) previousCleanup();
-    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card");
+    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card, .gallery-favorites-modal-card");
     dialog.hidden = false;
     dialog.classList.remove("is-opening", "is-closing");
     document.body.classList.add(bodyClass);
@@ -375,7 +377,7 @@
       return;
     }
     if (dialog.classList.contains("is-closing")) return;
-    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card");
+    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card, .gallery-favorites-modal-card");
     const finishImmediately = () => {
       dialog.hidden = true;
       dialog.classList.remove("is-opening", "is-closing");
@@ -421,9 +423,9 @@
   const sidebarFavoritesButton = document.getElementById("gallerySidebarFavorites");
   const sidebarSettingsButton = document.getElementById("gallerySidebarSettings");
 
-  // Modal priority follows the intended visual stack: preview > tag picker > settings.
+  // Modal priority: image preview > tag picker > settings > favorites.
   function getTopmostOpenDialog() {
-    return [lightbox, tagDialog, settingsDialog].find((dialog) =>
+    return [lightbox, tagDialog, settingsDialog, favoritesDialog].find((dialog) =>
       dialog && !dialog.hidden && !dialog.classList.contains("is-closing")
     ) || null;
   }
@@ -532,6 +534,53 @@
     });
   }
 
+  function openFavoritesDialog({ fromHistory = false, initial = false } = {}) {
+    if (!favoritesDialog || !favoritesDialog.hidden) return;
+    favoritesDialogTrigger = document.activeElement;
+    favoritesDialogHistoryEntry = !fromHistory && !initial;
+    openAnimatedDialog(favoritesDialog, "gallery-favorites-open");
+    if (favoritesDialogHistoryEntry) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("page", "favorites");
+      history.pushState({ ...(history.state || {}), view: "gallery", galleryFavoritesDialog: true }, "", url);
+    } else if (initial) {
+      history.replaceState({ ...(history.state || {}), view: "gallery", galleryFavoritesDialog: true }, "", window.location.href);
+    }
+    refreshFavoritesView();
+    const focusTarget = favoriteModalCloseButton || favoriteBackButton;
+    if (focusTarget) focusTarget.focus({ preventScroll: true });
+  }
+
+  function closeFavoritesDialog({ fromHistory = false } = {}) {
+    if (!favoritesDialog || favoritesDialog.hidden) return;
+    if (!fromHistory && favoritesDialogHistoryEntry && history.state && history.state.galleryFavoritesDialog) {
+      history.back();
+      return;
+    }
+    favoritesDialogHistoryEntry = false;
+    closeAnimatedDialog(favoritesDialog, "gallery-favorites-open", () => {
+      if (!fromHistory) {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("page") === "favorites") url.searchParams.set("page", "gallery");
+        history.replaceState({ ...(history.state || {}), view: "gallery", galleryFavoritesDialog: false }, "", url);
+      }
+      if (favoritesDialogTrigger && typeof favoritesDialogTrigger.focus === "function") favoritesDialogTrigger.focus({ preventScroll: true });
+      favoritesDialogTrigger = null;
+    });
+  }
+
+  if (favoritesDialog) {
+    document.addEventListener("keydown", (event) => {
+      if (favoritesDialog.hidden || getTopmostOpenDialog() !== favoritesDialog) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeFavoritesDialog();
+      } else {
+        trapDialogTab(event, favoritesDialog);
+      }
+    });
+  }
+
   if (settingsDialog) {
     settingsDialog.querySelectorAll("[data-gallery-settings-close]").forEach((button) => button.addEventListener("click", closeSettings));
     document.addEventListener("keydown", (event) => {
@@ -556,6 +605,8 @@
   let autoLoadArmed = true;
   let scrollObserver = null;
   let currentRoute = "home";
+  let favoritesDialogTrigger = null;
+  let favoritesDialogHistoryEntry = false;
   let lightboxTrigger = null;
   let lightboxSource = "gallery";
   let currentSourceName = "图片源";
@@ -568,6 +619,12 @@
   let selectedFavoriteUrls = new Set();
   let downloadingFavorites = false;
   let toastTimer = 0;
+
+  // Favorites are rendered only while their view is active. Building cards in
+  // small frame-sized batches prevents one long synchronous task on mobile.
+  let favoritesRenderVersion = 0;
+  let favoritesRenderFrame = 0;
+  let favoritesRenderDirty = true;
 
   function readStoredFavorites() {
     try {
@@ -720,7 +777,7 @@
     }
     const persisted = saveStoredFavorites();
     syncFavoriteButtons();
-    renderFavorites();
+    refreshFavoritesView();
     showToast(persisted ? message : message + "，但浏览器存储不可用，刷新后可能丢失");
   }
 
@@ -733,7 +790,7 @@
     favorites.unshift({ url, title, source, addedAt: Date.now() });
     const persisted = saveStoredFavorites();
     syncFavoriteButtons();
-    renderFavorites();
+    refreshFavoritesView();
     showCenterHeart(card);
     showToast(persisted ? "已通过右键加入收藏" : "已加入收藏，但浏览器存储不可用，刷新后可能丢失");
   }
@@ -747,8 +804,67 @@
     if (!favorites.length) favoritesSelectionMode = false;
     const persisted = saveStoredFavorites();
     syncFavoriteButtons();
-    renderFavorites();
+    refreshFavoritesView();
     showToast(persisted ? "已清除所选收藏" : "已暂时清除，但浏览器存储不可用，刷新后可能恢复");
+  }
+
+  function cancelFavoriteRender() {
+    favoritesRenderVersion++;
+    if (favoritesRenderFrame) window.cancelAnimationFrame(favoritesRenderFrame);
+    favoritesRenderFrame = 0;
+  }
+
+  function createFavoriteCard(item) {
+    const card = document.createElement("article");
+    card.className = "gallery-favorite-card";
+    if (selectedFavoriteUrls.has(item.url)) card.classList.add("is-selected");
+
+    const selection = document.createElement("label");
+    selection.className = "gallery-favorite-selection";
+    selection.hidden = !favoritesSelectionMode;
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selectedFavoriteUrls.has(item.url);
+    checkbox.setAttribute("aria-label", "选择 " + (item.title || "收藏图片"));
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selectedFavoriteUrls.add(item.url);
+      else selectedFavoriteUrls.delete(item.url);
+      card.classList.toggle("is-selected", checkbox.checked);
+      syncFavoriteToolbar();
+    });
+    selection.append(checkbox, document.createTextNode("选择"));
+
+    const preview = document.createElement("button");
+    preview.type = "button";
+    preview.className = "gallery-favorite-preview";
+    preview.dataset.sourceUrl = item.url;
+    preview.dataset.title = item.title || "随机插画";
+    preview.setAttribute("aria-label", "预览 " + preview.dataset.title);
+    const image = document.createElement("img");
+    image.alt = item.title || "收藏的插画";
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.src = item.url;
+    preview.append(image);
+    preview.addEventListener("click", () => openGalleryLightbox(item.url, item.title, preview, "favorites"));
+
+    const details = document.createElement("div");
+    details.className = "gallery-favorite-details";
+    const title = document.createElement("strong");
+    title.textContent = item.title || "随机插画";
+    const meta = document.createElement("span");
+    const date = new Date(item.addedAt);
+    meta.textContent = (item.source || "图片源") + " · " + (Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString());
+    details.append(title, meta);
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "gallery-favorite-remove";
+    remove.textContent = "移除";
+    remove.setAttribute("aria-label", "从收藏夹移除 " + (item.title || "图片"));
+    remove.addEventListener("click", () => removeFavoriteUrls([item.url]));
+    card.append(selection, preview, details, remove);
+    return card;
   }
 
   function renderFavorites() {
@@ -759,62 +875,79 @@
     }
     const stillSaved = new Set(favorites.map((item) => item.url));
     selectedFavoriteUrls = new Set([...selectedFavoriteUrls].filter((url) => stillSaved.has(url)));
-    favoritesEmpty.hidden = favorites.length > 0;
-    favoritesGrid.hidden = favorites.length === 0;
-    favoritesGrid.replaceChildren();
-    for (const item of favorites) {
-      const card = document.createElement("article");
-      card.className = "gallery-favorite-card";
-      if (selectedFavoriteUrls.has(item.url)) card.classList.add("is-selected");
-
-      const selection = document.createElement("label");
-      selection.className = "gallery-favorite-selection";
-      selection.hidden = !favoritesSelectionMode;
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = selectedFavoriteUrls.has(item.url);
-      checkbox.setAttribute("aria-label", "选择 " + (item.title || "收藏图片"));
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) selectedFavoriteUrls.add(item.url);
-        else selectedFavoriteUrls.delete(item.url);
-        card.classList.toggle("is-selected", checkbox.checked);
-        syncFavoriteToolbar();
-      });
-      selection.append(checkbox, document.createTextNode("选择"));
-
-      const preview = document.createElement("button");
-      preview.type = "button";
-      preview.className = "gallery-favorite-preview";
-      preview.dataset.sourceUrl = item.url;
-      preview.dataset.title = item.title || "随机插画";
-      preview.setAttribute("aria-label", "预览 " + preview.dataset.title);
-      const image = document.createElement("img");
-      image.src = item.url;
-      image.alt = item.title || "收藏的插画";
-      image.loading = "lazy";
-      image.decoding = "async";
-      preview.append(image);
-      preview.addEventListener("click", () => openGalleryLightbox(item.url, item.title, preview, "favorites"));
-
-      const details = document.createElement("div");
-      details.className = "gallery-favorite-details";
-      const title = document.createElement("strong");
-      title.textContent = item.title || "随机插画";
-      const meta = document.createElement("span");
-      const date = new Date(item.addedAt);
-      meta.textContent = (item.source || "图片源") + " · " + (Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString());
-      details.append(title, meta);
-
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "gallery-favorite-remove";
-      remove.textContent = "移除";
-      remove.setAttribute("aria-label", "从收藏夹移除 " + (item.title || "图片"));
-      remove.addEventListener("click", () => removeFavoriteUrls([item.url]));
-      card.append(selection, preview, details, remove);
-      favoritesGrid.append(card);
-    }
     syncFavoriteToolbar();
+
+    // Mutations from the main gallery only mark this view dirty; they must not
+    // create hidden cards or start thumbnail requests in the background.
+    if (!favoritesDialog || favoritesDialog.hidden) {
+      favoritesRenderDirty = true;
+      cancelFavoriteRender();
+      return;
+    }
+    if (!favoritesRenderDirty) return;
+
+    cancelFavoriteRender();
+    const renderVersion = ++favoritesRenderVersion;
+    const items = favorites.slice();
+
+    if (!items.length) {
+      favoritesGrid.replaceChildren();
+      favoritesGrid.hidden = true;
+      favoritesEmpty.hidden = false;
+      favoritesRenderDirty = false;
+      syncFavoriteToolbar();
+      return;
+    }
+
+    favoritesEmpty.hidden = true;
+    favoritesGrid.hidden = false;
+    if (favoritesCount) favoritesCount.textContent = "正在准备 " + items.length + " 张收藏…";
+
+    // Build detached batches of 16 cards. Give the route transition a paint
+    // opportunity first, then yield between batches so taps/scroll stay responsive.
+    const fragment = document.createDocumentFragment();
+    let index = 0;
+    const buildBatch = () => {
+      favoritesRenderFrame = 0;
+      if (renderVersion !== favoritesRenderVersion || !favoritesDialog || favoritesDialog.hidden) {
+        favoritesRenderDirty = true;
+        return;
+      }
+
+      const batch = document.createDocumentFragment();
+      const end = Math.min(index + 16, items.length);
+      while (index < end) batch.append(createFavoriteCard(items[index++]));
+      fragment.append(batch);
+
+      if (index < items.length) {
+        favoritesRenderFrame = window.requestAnimationFrame(buildBatch);
+        return;
+      }
+      if (renderVersion !== favoritesRenderVersion || !favoritesDialog || favoritesDialog.hidden) {
+        favoritesRenderDirty = true;
+        return;
+      }
+
+      favoritesGrid.replaceChildren(fragment);
+      favoritesGrid.hidden = false;
+      favoritesEmpty.hidden = true;
+      favoritesRenderDirty = false;
+      syncFavoriteToolbar();
+    };
+
+    favoritesRenderFrame = window.requestAnimationFrame(() => {
+      if (renderVersion !== favoritesRenderVersion || !favoritesDialog || favoritesDialog.hidden) {
+        favoritesRenderFrame = 0;
+        favoritesRenderDirty = true;
+        return;
+      }
+      favoritesRenderFrame = window.requestAnimationFrame(buildBatch);
+    });
+  }
+
+  function refreshFavoritesView() {
+    favoritesRenderDirty = true;
+    renderFavorites();
   }
 
   async function downloadFavoriteImage(url, index = 1) {
@@ -880,14 +1013,16 @@
   }
   if (sidebarFavoritesButton) sidebarFavoritesButton.addEventListener("click", () => {
     closeSidebar({ restoreFocus: false });
-    renderRoute("favorites", { updateHistory: true });
+    openFavoritesDialog();
   });
-  if (favoriteBackButton) favoriteBackButton.addEventListener("click", () => renderRoute("gallery", { updateHistory: true, replace: true }));
-  if (favoriteEmptyBackButton) favoriteEmptyBackButton.addEventListener("click", () => renderRoute("gallery", { updateHistory: true, replace: true }));
+  if (favoriteBackButton) favoriteBackButton.addEventListener("click", () => closeFavoritesDialog());
+  if (favoriteEmptyBackButton) favoriteEmptyBackButton.addEventListener("click", () => closeFavoritesDialog());
+  if (favoriteModalCloseButton) favoriteModalCloseButton.addEventListener("click", () => closeFavoritesDialog());
+  if (favoritesDialog) favoritesDialog.querySelectorAll("[data-gallery-favorites-close]").forEach((button) => button.addEventListener("click", () => closeFavoritesDialog()));
   if (favoriteMultiSelectButton) favoriteMultiSelectButton.addEventListener("click", () => {
     favoritesSelectionMode = !favoritesSelectionMode;
     selectedFavoriteUrls.clear();
-    renderFavorites();
+    refreshFavoritesView();
   });
   if (favoriteClearSelectedButton) favoriteClearSelectedButton.addEventListener("click", () => {
     if (!selectedFavoriteUrls.size) return;
@@ -900,7 +1035,7 @@
     const persisted = saveStoredFavorites();
     favoritesSelectionMode = false;
     syncFavoriteButtons();
-    renderFavorites();
+    refreshFavoritesView();
     showToast(persisted ? "已清除全部收藏" : "已暂时清除，但浏览器存储不可用，刷新后可能恢复");
   });
   if (favoriteDownloadAllButton) favoriteDownloadAllButton.addEventListener("click", () => runFavoriteDownloads(favorites.map((item) => item.url)));
@@ -917,15 +1052,22 @@
   }
 
   function renderRoute(route, { updateHistory = false, replace = false } = {}) {
-    currentRoute = route === "gallery" || route === "favorites" ? route : "home";
-    transition(() => {
+    const previousRoute = currentRoute;
+    const nextRoute = route === "gallery" || route === "favorites" ? route : "home";
+    if (previousRoute === "favorites" && nextRoute !== "favorites") {
+      // Keep a completed list cached when simply returning to the gallery.
+      // Only rebuild if leaving cancels an unfinished batch render.
+      if (favoritesRenderFrame) favoritesRenderDirty = true;
+      cancelFavoriteRender();
+    }
+    currentRoute = nextRoute;
+    const updateRoute = () => {
       const pageActive = currentRoute !== "home";
       document.body.classList.toggle("gallery-view-active", pageActive);
       homePage.hidden = pageActive;
       galleryPage.hidden = !pageActive;
       const galleryContent = galleryPage.querySelector(".gallery-content");
       if (galleryContent) galleryContent.hidden = currentRoute !== "gallery";
-      if (favoritesView) favoritesView.hidden = currentRoute !== "favorites";
       if (footer) footer.hidden = pageActive;
       window.scrollTo({ top: 0, behavior: "auto" });
       if (updateHistory) {
@@ -934,9 +1076,15 @@
         else url.searchParams.set("page", currentRoute);
         history[replace ? "replaceState" : "pushState"]({ view: currentRoute }, "", url);
       }
-    });
+    };
+
+    // The native View Transition API snapshots the full rendered page. Avoid
+    // that expensive snapshot for the favorites route, where a gallery full of
+    // image cards and glass effects may be present. Existing CSS view-in
+    // animations remain active, and other route transitions are unchanged.
+    if (previousRoute === "favorites" || nextRoute === "favorites") updateRoute();
+    else transition(updateRoute);
     if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 100 });
-    if (currentRoute === "favorites") renderFavorites();
     if (currentRoute !== "home") checkProviderStatus();
   }
 
@@ -955,16 +1103,23 @@
   });
 
   window.addEventListener("popstate", () => {
-    // A Back action should dismiss the open image preview before leaving the gallery.
     if (!lightbox.hidden) {
       closeLightbox({ fromHistory: true });
       return;
     }
+    const hasFavoritesHistory = Boolean(history.state && history.state.galleryFavoritesDialog);
+    if (favoritesDialog && !favoritesDialog.hidden && !hasFavoritesHistory) {
+      closeFavoritesDialog({ fromHistory: true });
+      return;
+    }
+    if (favoritesDialog && favoritesDialog.hidden && hasFavoritesHistory) {
+      openFavoritesDialog({ fromHistory: true });
+      return;
+    }
     const stateView = history.state && history.state.view;
     const pageParam = new URL(window.location.href).searchParams.get("page");
-    const nextRoute = stateView === "favorites" || pageParam === "favorites"
-      ? "favorites"
-      : stateView === "gallery" || pageParam === "gallery" ? "gallery" : "home";
+    const nextRoute = stateView === "gallery" || pageParam === "gallery" || pageParam === "favorites"
+      ? "gallery" : "home";
     // Closing a history-backed preview returns to the same gallery entry. Do not
     // call renderRoute in that case, because it would jump the page back to top.
     if (nextRoute !== currentRoute) renderRoute(nextRoute);
@@ -1686,9 +1841,13 @@
     scrollObserver.observe(moreButton);
   }
 
-  const initialRoute = new URL(window.location.href).searchParams.get("page") === "favorites" ? "favorites" : "gallery";
+  const initialPageParam = new URL(window.location.href).searchParams.get("page");
+  const initialRoute = "gallery";
   const initialHistoryState = { ...(history.state || {}), view: initialRoute };
   delete initialHistoryState.galleryLightbox;
+  if (initialPageParam === "favorites") initialHistoryState.galleryFavoritesDialog = true;
+  else delete initialHistoryState.galleryFavoritesDialog;
   history.replaceState(initialHistoryState, "", window.location.href);
   renderRoute(initialRoute);
+  if (initialPageParam === "favorites") openFavoritesDialog({ initial: true });
 })();

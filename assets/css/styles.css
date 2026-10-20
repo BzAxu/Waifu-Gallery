@@ -1362,18 +1362,18 @@ body.gallery-tags-open{ overflow:hidden; }
   animation: none;
 }
 
-/* All modal families share one predictable open/close lifecycle. */
-.gallery-tag-dialog.is-opening .gallery-tag-backdrop, .gallery-settings-dialog.is-opening .gallery-settings-backdrop, .gallery-lightbox.is-opening .gallery-lightbox-backdrop{
+/* All modal families use the same entrance and exit motion. */
+.gallery-tag-dialog.is-opening .gallery-tag-backdrop, .gallery-settings-dialog.is-opening .gallery-settings-backdrop, .gallery-lightbox.is-opening .gallery-lightbox-backdrop, .gallery-favorites-dialog.is-opening .gallery-favorites-backdrop{
   animation: galleryDialogBackdropIn 220ms ease both;
 }
-.gallery-tag-dialog.is-opening .gallery-tag-card, .gallery-settings-dialog.is-opening .gallery-settings-card, .gallery-lightbox.is-opening .gallery-lightbox-card{
+.gallery-tag-dialog.is-opening .gallery-tag-card, .gallery-settings-dialog.is-opening .gallery-settings-card, .gallery-lightbox.is-opening .gallery-lightbox-card, .gallery-favorites-dialog.is-opening .gallery-favorites-modal-card{
   animation: galleryDialogPanelIn 300ms cubic-bezier(.2,.8,.2,1) both;
 }
-.gallery-tag-dialog.is-closing .gallery-tag-backdrop, .gallery-settings-dialog.is-closing .gallery-settings-backdrop, .gallery-lightbox.is-closing .gallery-lightbox-backdrop{
+.gallery-tag-dialog.is-closing .gallery-tag-backdrop, .gallery-settings-dialog.is-closing .gallery-settings-backdrop, .gallery-lightbox.is-closing .gallery-lightbox-backdrop, .gallery-favorites-dialog.is-closing .gallery-favorites-backdrop{
   animation: galleryDialogBackdropOut 180ms ease both;
   pointer-events: none;
 }
-.gallery-tag-dialog.is-closing .gallery-tag-card, .gallery-settings-dialog.is-closing .gallery-settings-card, .gallery-lightbox.is-closing .gallery-lightbox-card{
+.gallery-tag-dialog.is-closing .gallery-tag-card, .gallery-settings-dialog.is-closing .gallery-settings-card, .gallery-lightbox.is-closing .gallery-lightbox-card, .gallery-favorites-dialog.is-closing .gallery-favorites-modal-card{
   animation: galleryDialogPanelOut 190ms cubic-bezier(.4,0,1,1) both;
   pointer-events: none;
 }
@@ -2157,3 +2157,18 @@ body.gallery-sidebar-open{ overflow:hidden; }
     animation:none!important;
   }
 }
+
+
+/* Favorites modal experiment: keep the gallery mounted behind a centered, scrollable glass dialog. */
+.gallery-favorites-dialog[hidden]{display:none!important}
+.gallery-favorites-dialog{position:fixed;inset:0;z-index:135;display:grid;place-items:center;padding:clamp(10px,2.5vw,24px);isolation:isolate}
+.gallery-favorites-backdrop{position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(4,6,14,.76);-webkit-backdrop-filter:blur(12px) saturate(135%);backdrop-filter:blur(12px) saturate(135%);cursor:default}
+.gallery-favorites-modal-card{position:relative;z-index:1;width:min(1180px,100%);max-height:min(90dvh,920px);overflow:auto;overscroll-behavior:contain;padding:clamp(16px,2.8vw,30px);border:1px solid rgba(221,218,255,.22);border-top-color:rgba(255,255,255,.36);border-radius:26px;background:radial-gradient(ellipse at 100% 0%,rgba(148,126,255,.13),transparent 48%),linear-gradient(145deg,rgba(31,35,57,.94),rgba(10,13,25,.96));box-shadow:0 30px 100px rgba(0,0,0,.55),0 0 40px rgba(130,112,255,.10),inset 0 1px 0 rgba(255,255,255,.10);-webkit-backdrop-filter:blur(32px) saturate(175%);backdrop-filter:blur(32px) saturate(175%);animation:none}
+.gallery-favorites-modal-close{position:sticky;top:0;z-index:6;float:right;display:grid;place-items:center;width:38px;height:38px;margin:-5px -5px 0 12px;border:1px solid rgba(220,228,255,.22);border-radius:12px;color:var(--muted);background:rgba(255,255,255,.07);font-size:25px;line-height:1;cursor:pointer;transition:transform .22s ease,border-color .22s ease,background .22s ease}
+.gallery-favorites-modal-close:hover{transform:translateY(-2px);border-color:rgba(169,155,255,.55);background:rgba(169,155,255,.13)}
+.gallery-favorites-view{width:100%;margin:0;animation:none!important}
+.gallery-favorites-heading{padding-top:6px}
+/* Favorites uses the same shared dialog animations as settings and tags. */
+body.gallery-favorites-open{overflow:hidden}
+@media(max-width:700px){.gallery-favorites-dialog{padding:8px}.gallery-favorites-modal-card{width:100%;max-height:92dvh;padding:14px 12px 18px;border-radius:20px}.gallery-favorites-heading{padding-top:2px}.gallery-favorites-modal-close{margin:-2px -2px 0 8px}}
+@media(prefers-reduced-motion:reduce){.gallery-favorites-dialog.is-opening .gallery-favorites-backdrop,.gallery-favorites-dialog.is-opening .gallery-favorites-modal-card,.gallery-favorites-dialog.is-closing .gallery-favorites-backdrop,.gallery-favorites-dialog.is-closing .gallery-favorites-modal-card{animation:none!important}.gallery-favorites-modal-close{transition:none!important}}

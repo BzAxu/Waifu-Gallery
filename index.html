@@ -44,33 +44,40 @@
       <button class="button gallery-more" id="galleryMore" type="button">再看一些 <span aria-hidden="true">↓</span></button>
     </div>
     </div>
-    <section class="gallery-favorites-view" id="galleryFavoritesView" aria-labelledby="galleryFavoritesTitle" hidden>
-      <div class="gallery-favorites-heading">
-        <button class="button gallery-favorites-back" id="galleryFavoritesBack" type="button">← 返回画廊</button>
-        <div class="gallery-favorites-title-wrap">
-          <span class="gallery-favorites-eyebrow">LOCAL / COLLECTION</span>
-          <h1 id="galleryFavoritesTitle">本地收藏夹</h1>
-          <p>仅保存在当前浏览器，不会上传到服务器。</p>
-        </div>
-      </div>
-      <div class="gallery-favorites-toolbar" aria-label="收藏夹操作">
-        <button class="button" id="galleryFavoritesDownloadAll" type="button">↓ 一键下载</button>
-        <button class="button" id="galleryFavoritesMultiSelect" type="button" aria-pressed="false">多选</button>
-        <button class="button" id="galleryFavoritesDownloadSelected" type="button" disabled>下载</button>
-        <button class="button" id="galleryFavoritesClearSelected" type="button" disabled>清除</button>
-        <button class="button gallery-favorites-danger" id="galleryFavoritesClearAll" type="button">清除全部</button>
-        <span class="gallery-favorites-status" id="galleryFavoritesStatus" role="status" aria-live="polite">共 0 张图片</span>
-      </div>
-      <div class="gallery-favorites-empty" id="galleryFavoritesEmpty">
-        <span aria-hidden="true">♡</span>
-        <h2>还没有收藏图片</h2>
-        <p>回到画廊，点击缩略图右下角的爱心即可收藏。</p>
-        <button class="button" id="galleryFavoritesEmptyBack" type="button">去逛画廊</button>
-      </div>
-      <div class="gallery-favorites-grid" id="galleryFavoritesGrid" aria-label="本地收藏图片列表" hidden></div>
-    </section>
+
   </main>
 <footer hidden><div class="foot-line"></div>Waifu Gallery · 二次元图片聚合画廊</footer>
+<section class="gallery-favorites-dialog" id="galleryFavoritesDialog" role="dialog" aria-modal="true" aria-labelledby="galleryFavoritesTitle" hidden>
+  <button class="gallery-favorites-backdrop" type="button" data-gallery-favorites-close aria-label="关闭本地收藏夹"></button>
+  <div class="gallery-favorites-modal-card">
+    <button class="gallery-favorites-modal-close" id="galleryFavoritesModalClose" type="button" aria-label="关闭收藏夹">×</button>
+      <section class="gallery-favorites-view" id="galleryFavoritesView" aria-labelledby="galleryFavoritesTitle">
+        <div class="gallery-favorites-heading">
+          <button class="button gallery-favorites-back" id="galleryFavoritesBack" type="button">← 返回画廊</button>
+          <div class="gallery-favorites-title-wrap">
+            <span class="gallery-favorites-eyebrow">LOCAL / COLLECTION</span>
+            <h1 id="galleryFavoritesTitle">本地收藏夹</h1>
+            <p>仅保存在当前浏览器，不会上传到服务器。</p>
+          </div>
+        </div>
+        <div class="gallery-favorites-toolbar" aria-label="收藏夹操作">
+          <button class="button" id="galleryFavoritesDownloadAll" type="button">↓ 一键下载</button>
+          <button class="button" id="galleryFavoritesMultiSelect" type="button" aria-pressed="false">多选</button>
+          <button class="button" id="galleryFavoritesDownloadSelected" type="button" disabled>下载</button>
+          <button class="button" id="galleryFavoritesClearSelected" type="button" disabled>清除</button>
+          <button class="button gallery-favorites-danger" id="galleryFavoritesClearAll" type="button">清除全部</button>
+          <span class="gallery-favorites-status" id="galleryFavoritesStatus" role="status" aria-live="polite">共 0 张图片</span>
+        </div>
+        <div class="gallery-favorites-empty" id="galleryFavoritesEmpty">
+          <span aria-hidden="true">♡</span>
+          <h2>还没有收藏图片</h2>
+          <p>回到画廊，点击缩略图右下角的爱心即可收藏。</p>
+          <button class="button" id="galleryFavoritesEmptyBack" type="button">去逛画廊</button>
+        </div>
+        <div class="gallery-favorites-grid" id="galleryFavoritesGrid" aria-label="本地收藏图片列表" hidden></div>
+      </section>
+  </div>
+</section>
 <section class="gallery-tag-dialog" id="galleryTagDialog" role="dialog" aria-modal="true" aria-labelledby="galleryTagTitle" hidden>
   <button class="gallery-tag-backdrop" type="button" data-gallery-tag-close aria-label="关闭标签选择"></button>
   <div class="gallery-tag-card">
