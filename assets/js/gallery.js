@@ -1863,7 +1863,7 @@
         const params = new URLSearchParams({ source, count: String(requestedCount) });
         const requestedTags = tagInput && tagFilteringAvailable() ? tagInput.value.trim() : "";
         if (requestedTags) params.set("tags", requestedTags);
-        if (blockedTags.length && (source === "auto" || source === "safebooru")) params.set("blockedTags", blockedTags.join(","));
+        if (blockedTags.length && (source === "auto" || source === "safebooru" || source === "waifuim")) params.set("blockedTags", blockedTags.join(","));
         const response = await fetch(galleryApiUrl("?" + params.toString()), {
           method: "GET",
           headers: { "Accept": "application/json" },
@@ -2346,7 +2346,9 @@
           ? (tagSelectionMode === "block" ? "屏蔽标签会从 Safebooru 结果中排除。" : "Safebooru 将使用安全评级（safe）进行筛选。")
           : sourceSelect && sourceSelect.value === "nekosapi"
             ? "Nekos API 支持筛选标签；屏蔽标签需切换到自动模式、Waifu.im 或 Safebooru。"
-            : (tagSelectionMode === "block" ? "自动模式会优先尝试支持排除标签的 Waifu.im 与 Safebooru。" : "自动模式只会查询支持标签的图片源。标签越多，筛选条件越严格。");
+            : sourceSelect && sourceSelect.value === "waifuim"
+              ? "Waifu.im 支持服务端筛选与排除标签，并仅请求安全评级图片。"
+              : (tagSelectionMode === "block" ? "自动模式会优先尝试支持排除标签的 Waifu.im 与 Safebooru。" : "自动模式只会查询支持标签的图片源。标签越多，筛选条件越严格。");
   }
   function openTagDialog() {
     if (!tagDialog) return;
@@ -2413,8 +2415,8 @@
     if (tagApplyButton) tagApplyButton.disabled = !available;
     if (tagSettingsOpen) tagSettingsOpen.disabled = loading || !available;
     if (tagDialogOpen) tagDialogOpen.disabled = loading || !available;
-    if (tagHint && !available) tagHint.textContent = "当前图片源不支持标签筛选。切换到自动模式、Nekos API 或 Safebooru 即可使用。";
-    else if (tagHint && blockedTags.length && !blockingTagsAvailable()) tagHint.textContent = "已保存屏蔽标签；切换到自动模式或 Safebooru 后生效。";
+    if (tagHint && !available) tagHint.textContent = "当前图片源不支持标签筛选。切换到自动模式、Nekos API、Waifu.im 或 Safebooru 即可使用。";
+    else if (tagHint && blockedTags.length && !blockingTagsAvailable()) tagHint.textContent = "已保存屏蔽标签；切换到自动模式、Waifu.im 或 Safebooru 后生效。";
     else if (tagHint && !tagInput.value && !blockedTags.length) tagHint.textContent = "尚未选择标签。可按类别筛选或屏蔽标签。";
     updateTagDialogHint();
   }
