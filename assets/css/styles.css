@@ -2157,3 +2157,33 @@ body.gallery-sidebar-open{ overflow:hidden; }
     animation:none!important;
   }
 }
+
+
+/* Performance: keep off-screen cards inert and animate only as they approach view. */
+#galleryGrid .gallery-item--loaded:not(.is-in-view) {
+  opacity: 0 !important;
+  animation: none !important;
+  filter: none !important;
+  will-change: auto !important;
+}
+#galleryGrid .gallery-item--loaded:not(.is-in-view) img {
+  transition: none !important;
+  filter: none !important;
+}
+#galleryGrid .gallery-item--loaded.is-in-view {
+  animation: galleryImageRevealLight 460ms cubic-bezier(.2,.8,.2,1) both !important;
+  will-change: opacity, transform;
+}
+@keyframes galleryImageRevealLight {
+  0% { opacity: 0; transform: translate3d(0, 14px, 0) scale(.985); }
+  72% { opacity: 1; transform: translate3d(0, -2px, 0) scale(1.004); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #galleryGrid .gallery-item--loaded:not(.is-in-view),
+  #galleryGrid .gallery-item--loaded.is-in-view {
+    opacity: 1 !important;
+    animation: none !important;
+    transform: none !important;
+  }
+}
