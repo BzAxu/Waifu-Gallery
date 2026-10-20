@@ -1002,6 +1002,7 @@
       }
 
       favoritesGrid.replaceChildren(fragment);
+      favoritesGrid.querySelectorAll(".gallery-favorite-card").forEach(revealGalleryCardOnScroll);
       favoritesGrid.hidden = false;
       favoritesEmpty.hidden = true;
       favoritesRenderDirty = false;
