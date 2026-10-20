@@ -87,6 +87,18 @@
   // Pending cards are appended at the end and stay in their lane when loaded.
   let galleryLanes = [];
   let galleryGeneration = 0;
+  // Reveal cards only when they approach the viewport, following the homepage's
+  // IntersectionObserver pattern and avoiding off-screen entrance work on mobile.
+  let galleryRevealObserver = null;
+  if ("IntersectionObserver" in window) {
+    galleryRevealObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-card-visible");
+        galleryRevealObserver.unobserve(entry.target);
+      });
+    }, { threshold: 0.08, rootMargin: "160px 0px" });
+  }
 
   function getShortestLane(lanes) {
     if (!lanes.length) return null;
@@ -163,6 +175,8 @@
     const firstPlaceholder = lane.querySelector(":scope > .gallery-skeleton-placeholder");
     if (firstPlaceholder) lane.insertBefore(card, firstPlaceholder);
     else lane.append(card);
+    if (galleryRevealObserver) galleryRevealObserver.observe(card);
+    else card.classList.add("is-card-visible");
     animatePlaceholderReflow(beforeRects);
   }
 
@@ -1491,7 +1505,7 @@
     // animations remain active, and other route transitions are unchanged.
     if (previousRoute === "favorites" || nextRoute === "favorites") updateRoute();
     else transition(updateRoute);
-    if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 100 });
+    if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 24 });
     if (currentRoute !== "home") checkProviderStatus();
   }
 
@@ -1623,7 +1637,7 @@
       requestAnimationFrame(() => {
         if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" || lastBatchAdded <= 0) return;
         if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-          loadImages({ targetCount: 100 });
+          loadImages({ targetCount: 24 });
         }
       });
     }
@@ -2040,7 +2054,7 @@
     try {
       const value = JSON.parse(localStorage.getItem(key) || "[]");
       if (!Array.isArray(value)) return [];
-      return [...new Set(value.filter((tag) => typeof tag === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(tag)))];
+      return [...new Set(value.filter((tag) => typeof tag === "string" && /^[\p{L}\p{N}_-]{1,64}$/u.test(tag)))];
     } catch (_) { return []; }
   }
   function saveTagPreferences() {
@@ -2058,80 +2072,100 @@
   let tagDialogTrigger = null;
   let tagOptionsAnimationTimer = 0;
   function syncSelectedTagsFromInput() {
-    selectedTags = [...new Set((tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter((tag) => /^[a-zA-Z0-9_-]{1,64}$/.test(tag)))];
+    selectedTags = [...new Set((tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter((tag) => /^[\p{L}\p{N}_-]{1,64}$/u.test(tag)))];
   }
   function activeTagList() { return tagSelectionMode === "block" ? blockedTags : selectedTags; }
   function blockingTagsAvailable() { return !sourceSelect || ["auto", "safebooru"].includes(sourceSelect.value); }
   function syncTagModeButtons() {
-    if (tagModeIncludeButton) { tagModeIncludeButton.classList.toggle("is-active", tagSelectionMode === "include"); tagModeIncludeButton.setAttribute("aria-pressed", String(tagSelectionMode === "include")); }
-    if (tagModeBlockButton) { tagModeBlockButton.classList.toggle("is-active", tagSelectionMode === "block"); tagModeBlockButton.setAttribute("aria-pressed", String(tagSelectionMode === "block")); }
-    if (tagSelectedTitle) tagSelectedTitle.textContent = tagSelectionMode === "block" ? "屏蔽标签" : "已选标签";
-    if (tagDialogDescription) tagDialogDescription.textContent = tagSelectionMode === "block"
-      ? "选择不想看到的标签，匹配的图片会被排除。设置会保存在本地。"
-      : "选择想看的标签，可多选。筛选和屏蔽设置会在刷新后保留。";
-    if (tagClearButton) tagClearButton.textContent = tagSelectionMode === "block" ? "清空屏蔽" : "清空";
+    if (tagModeIncludeButton) {
+      tagModeIncludeButton.classList.toggle("is-active", tagSelectionMode === "include");
+      tagModeIncludeButton.setAttribute("aria-pressed", String(tagSelectionMode === "include"));
+    }
+    if (tagModeBlockButton) {
+      tagModeBlockButton.classList.toggle("is-active", tagSelectionMode === "block");
+      tagModeBlockButton.setAttribute("aria-pressed", String(tagSelectionMode === "block"));
+    }
+    if (tagSelectedTitle) tagSelectedTitle.textContent = "当前标签状态";
+    if (tagDialogDescription) tagDialogDescription.textContent =
+      "同一份标签列表同时显示筛选与屏蔽状态。切换操作不会切换或重置列表，设置会保存在本地。";
+    if (tagClearButton) tagClearButton.textContent = tagSelectionMode === "block" ? "清空屏蔽标签" : "清空筛选标签";
   }
   function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
-  // Reconcile selected chips in place. Replacing every child on each click
-  // restarted CSS animations on all chips and caused the selected area to flash.
+  function tagState(tag) {
+    if (blockedTags.includes(tag)) return "block";
+    if (selectedTags.includes(tag)) return "include";
+    return "none";
+  }
   function renderSelectedTags() {
     if (!tagSelected) return;
-    const activeTags = activeTagList();
-    const active = new Set(activeTags);
+    const all = [
+      ...selectedTags.map((tag) => ({ tag, state: "include" })),
+      ...blockedTags.map((tag) => ({ tag, state: "block" }))
+    ];
+    const active = new Set(all.map((item) => item.tag));
     tagSelected.querySelectorAll(".gallery-tag-selected-chip").forEach((chip) => {
       if (!active.has(chip.dataset.tag)) chip.remove();
     });
-    let emptyTag = tagSelected.querySelector(".gallery-tag-none");
-    if (!activeTags.length) {
-      if (!emptyTag) {
-        emptyTag = document.createElement("span");
-        emptyTag.className = "gallery-tag-none";
-        emptyTag.textContent = tagSelectionMode === "block" ? "还没有屏蔽标签" : "还没有选择标签";
-        tagSelected.append(emptyTag);
-      }
-    } else {
-      emptyTag?.remove();
-      activeTags.forEach((tag) => {
-        if (tagSelected.querySelector('[data-tag="' + CSS.escape(tag) + '"].gallery-tag-selected-chip')) return;
-        const chip = document.createElement("span");
+    tagSelected.querySelector(".gallery-tag-none")?.remove();
+    for (const { tag, state } of all) {
+      let chip = tagSelected.querySelector('.gallery-tag-selected-chip[data-tag="' + CSS.escape(tag) + '"]');
+      if (!chip) {
+        chip = document.createElement("span");
         chip.className = "gallery-tag-selected-chip";
         chip.dataset.tag = tag;
+        const mark = document.createElement("b");
+        mark.className = "gallery-tag-chip-state";
         const name = document.createElement("span");
-        name.textContent = tagLabel(tag);
+        name.className = "gallery-tag-chip-name";
         const remove = document.createElement("button");
         remove.type = "button";
         remove.textContent = "×";
-        remove.setAttribute("aria-label", "移除 " + name.textContent);
+        remove.setAttribute("aria-label", "移除标签状态");
         remove.addEventListener("click", () => {
-          if (tagSelectionMode === "block") blockedTags = blockedTags.filter((item) => item !== tag);
-          else selectedTags = selectedTags.filter((item) => item !== tag);
+          const currentState = tagState(tag);
+          if (currentState === "block") blockedTags = blockedTags.filter((item) => item !== tag);
+          else if (currentState === "include") selectedTags = selectedTags.filter((item) => item !== tag);
           syncTagOptionStates();
           renderSelectedTags();
           updateTagDialogHint();
         });
-        chip.append(name, remove);
+        chip.append(mark, name, remove);
         tagSelected.append(chip);
-      });
+      }
+      chip.dataset.state = state;
+      chip.classList.toggle("is-blocked", state === "block");
+      chip.classList.toggle("is-selected", state === "include");
+      const mark = chip.querySelector(".gallery-tag-chip-state");
+      const name = chip.querySelector(".gallery-tag-chip-name");
+      if (mark) mark.textContent = state === "block" ? "×" : "√";
+      if (name) name.textContent = tagLabel(tag);
+    }
+    if (!all.length) {
+      const emptyTag = document.createElement("span");
+      emptyTag.className = "gallery-tag-none";
+      emptyTag.textContent = "还没有选择或屏蔽标签";
+      tagSelected.append(emptyTag);
     }
     syncTagModeButtons();
     if (tagConfirmButton) tagConfirmButton.textContent = "应用设置";
-    tagSelected.dataset.count = String(activeTags.length);
+    tagSelected.dataset.count = String(all.length);
   }
 
   function syncTagOptionStates() {
     if (!tagOptions) return;
     tagOptions.querySelectorAll(".gallery-tag-option").forEach((button) => {
-      const selected = activeTagList().includes(button.dataset.tag);
-      button.classList.toggle("is-selected", selected);
-      button.setAttribute("aria-pressed", String(selected));
+      const state = tagState(button.dataset.tag);
+      button.classList.toggle("is-selected", state === "include");
+      button.classList.toggle("is-blocked", state === "block");
+      button.dataset.state = state;
+      button.setAttribute("aria-pressed", String(state !== "none"));
       const mark = button.querySelector(".gallery-tag-option-mark");
-      if (mark) mark.textContent = selected ? "✓" : "+";
+      if (mark) mark.textContent = state === "block" ? "×" : state === "include" ? "√" : "+";
     });
   }
 
-  // Rebuild the option grid only when changing categories/opening the dialog.
-  // Toggling one tag updates the existing button in place, without replaying
-  // entrance animations across the entire list.
+  // The category grid is shared by both operations; switching modes only changes
+  // what a click does, never which tags are rendered or which states are shown.
   function renderTagOptions({ animate = false } = {}) {
     if (!tagOptions) return;
     tagOptions.classList.remove("tag-options-enter");
@@ -2143,27 +2177,33 @@
     (TAG_CATEGORIES[activeTagCategory] || []).forEach(([tag, label]) => {
       const button = document.createElement("button");
       button.type = "button";
-      const selected = activeTagList().includes(tag);
-      button.className = "gallery-tag-option" + (selected ? " is-selected" : "");
+      button.className = "gallery-tag-option";
       button.dataset.tag = tag;
-      button.setAttribute("aria-pressed", String(selected));
+      const state = tagState(tag);
+      button.classList.toggle("is-selected", state === "include");
+      button.classList.toggle("is-blocked", state === "block");
+      button.dataset.state = state;
+      button.setAttribute("aria-pressed", String(state !== "none"));
       const mark = document.createElement("span");
       mark.className = "gallery-tag-option-mark";
-      mark.textContent = selected ? "✓" : "+";
+      mark.textContent = state === "block" ? "×" : state === "include" ? "√" : "+";
       const text = document.createElement("span");
       text.textContent = label;
       button.append(mark, text);
       button.addEventListener("click", () => {
-        const list = activeTagList();
-        if (list.includes(tag)) {
-          if (tagSelectionMode === "block") blockedTags = blockedTags.filter((item) => item !== tag);
-          else selectedTags = selectedTags.filter((item) => item !== tag);
-        } else if (tagSelectionMode === "block") {
-          blockedTags.push(tag);
-          selectedTags = selectedTags.filter((item) => item !== tag);
+        const currentState = tagState(tag);
+        if (tagSelectionMode === "block") {
+          if (currentState === "block") blockedTags = blockedTags.filter((item) => item !== tag);
+          else {
+            blockedTags = [...blockedTags, tag];
+            selectedTags = selectedTags.filter((item) => item !== tag);
+          }
         } else {
-          selectedTags.push(tag);
-          blockedTags = blockedTags.filter((item) => item !== tag);
+          if (currentState === "include") selectedTags = selectedTags.filter((item) => item !== tag);
+          else {
+            selectedTags = [...selectedTags, tag];
+            blockedTags = blockedTags.filter((item) => item !== tag);
+          }
         }
         syncTagOptionStates();
         renderSelectedTags();
@@ -2174,7 +2214,6 @@
     if (animate && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       void tagOptions.offsetWidth;
       tagOptions.classList.add("tag-options-enter");
-      // CSS uses a 440ms cascade plus up to 85ms of staggered delay.
       tagOptionsAnimationTimer = window.setTimeout(() => {
         tagOptions.classList.remove("tag-options-enter");
         tagOptionsAnimationTimer = 0;
@@ -2224,8 +2263,8 @@
       }
     });
   }
-  if (tagModeIncludeButton) tagModeIncludeButton.addEventListener("click", () => { tagSelectionMode = "include"; syncTagModeButtons(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint(); });
-  if (tagModeBlockButton) tagModeBlockButton.addEventListener("click", () => { tagSelectionMode = "block"; syncTagModeButtons(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint(); });
+  if (tagModeIncludeButton) tagModeIncludeButton.addEventListener("click", () => { tagSelectionMode = "include"; syncTagModeButtons(); updateTagDialogHint(); });
+  if (tagModeBlockButton) tagModeBlockButton.addEventListener("click", () => { tagSelectionMode = "block"; syncTagModeButtons(); updateTagDialogHint(); });
   if (tagCategoryTabs) tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((button) => button.addEventListener("click", () => {
     activeTagCategory = button.dataset.tagCategory;
     tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((tab) => { const active = tab === button; tab.classList.toggle("is-active", active); tab.setAttribute("aria-selected", String(active)); });
@@ -2246,7 +2285,7 @@
       const blockText = blockedTags.length ? "屏蔽：" + blockedTags.map(tagLabel).join("、") : "未设置屏蔽标签";
       tagHint.textContent = includeText + " · " + blockText + (persisted ? " · 已保存" : " · 保存失败");
     }
-    closeTagDialog(); loadImages({ reset: true, targetCount: 100 });
+    closeTagDialog(); loadImages({ reset: true, targetCount: 24 });
   });
 
   function tagFilteringAvailable() {
@@ -2266,24 +2305,24 @@
   refreshButton.addEventListener("click", () => {
     syncSelectedTagsFromInput(); saveTagPreferences();
     lastRequestUsedFallback = false;
-    loadImages({ reset: true, targetCount: 100 });
+    loadImages({ reset: true, targetCount: 24 });
   });
   if (sourceSelect) sourceSelect.addEventListener("change", () => {
     syncSelectedTagsFromInput(); saveTagPreferences();
     updateTagFilterAvailability();
-    loadImages({ reset: true, targetCount: 100 });
+    loadImages({ reset: true, targetCount: 24 });
   });
-  if (tagApplyButton) tagApplyButton.addEventListener("click", () => { syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 100 }); });
+  if (tagApplyButton) tagApplyButton.addEventListener("click", () => { syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 24 }); });
   if (tagInput) tagInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !tagInput.disabled) {
       event.preventDefault();
-      syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 100 });
+      syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 24 });
     }
   });
   updateTagFilterAvailability();
   if (providerStatusRefresh) providerStatusRefresh.addEventListener("click", checkProviderStatus);
   retryButton.addEventListener("click", () => loadImages({ reset: imageCount() === 0, targetCount: imageCount() === 0 ? 100 : 20 }));
-  moreButton.addEventListener("click", () => loadImages({ targetCount: 100 }));
+  moreButton.addEventListener("click", () => loadImages({ targetCount: 24 }));
 
   // Reliable infinite scroll: check the sentinel on scroll, resize, and after every batch.
   // This also fills short screens automatically without depending on observer re-entry.
@@ -2297,7 +2336,7 @@
       if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" ||
           lastBatchAdded <= 0 || !moreButton) return;
       if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-        loadImages({ targetCount: 100 });
+        loadImages({ targetCount: 24 });
       }
     });
   }
