@@ -53,10 +53,20 @@ const PROVIDERS = [
   {
     id: "waifuim",
     name: "Waifu.im",
-    kind: "SFW 随机动漫图 · 安全评级",
+    kind: "SFW 图片 · 标签筛选与屏蔽",
     url: "https://api.waifu.im/images?IsNsfw=False&PageSize=10",
     headers: { "Accept": "application/json" },
     batchSize: 10,
+    supportsTags: true,
+    supportsBlockedTags: true,
+    buildUrl: (tags, blockedTags = []) => {
+      const target = new URL("https://api.waifu.im/images");
+      target.searchParams.set("IsNsfw", "False");
+      target.searchParams.set("PageSize", "10");
+      tags.forEach((tag) => target.searchParams.append("IncludedTags", tag));
+      blockedTags.forEach((tag) => target.searchParams.append("ExcludedTags", tag));
+      return target.toString();
+    },
     parse: (data) => Array.isArray(data.items) ? data.items.map((item) => item.url) : []
   },
   {
@@ -83,6 +93,7 @@ const PROVIDERS = [
     headers: { "Accept": "application/json", "User-Agent": "Waifu-Gallery/1.0 (public safe image gallery)" },
     batchSize: 20,
     supportsTags: true,
+    supportsBlockedTags: true,
     buildUrl: (tags, blockedTags = []) => {
       const target = new URL("https://safebooru.org/index.php");
       target.searchParams.set("page", "dapi");
@@ -178,7 +189,7 @@ export async function onRequestGet({ request }) {
   if (tags.some((tag) => !validTag(tag)) || blockedTags.some((tag) => !validTag(tag))) {
     return json({ error: "标签格式无效：标签只能使用字母、数字、下划线或连字符。" }, 400);
   }
-  if (blockedTags.length && !["auto", "safebooru"].includes(selected)) {
+  if (blockedTags.length && !["auto", "safebooru", "waifuim"].includes(selected)) {
     return json({ error: "屏蔽标签仅支持自动模式或 Safebooru 图片源。请切换图片源后重试。" }, 400);
   }
 
@@ -301,7 +312,7 @@ export async function onRequestGet({ request }) {
   }
   const candidates = selected === "auto"
     ? [...activeProviders].filter((provider) => blockedTags.length
-        ? provider.id === "safebooru"
+        ? provider.supportsBlockedTags
         : (!tags.length || provider.supportsTags))
         .sort((a, b) => (b.batchSize || 0) - (a.batchSize || 0))
     : activeProviders.filter((provider) => provider.id === selected);
