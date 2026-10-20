@@ -2343,7 +2343,3 @@ body.gallery-download-confirm-open{overflow:hidden}
 }
 
 
-/* Tags exposed in the illustration detail view for source metadata inspection. */
-.gallery-lightbox-tags{width:100%;display:flex;flex-wrap:wrap;justify-content:center;gap:7px;padding:8px 4px 2px;max-height:120px;overflow:auto;}
-.gallery-detail-tag{display:inline-flex;align-items:center;padding:5px 9px;border:1px solid rgba(169,155,255,.28);border-radius:999px;background:rgba(123,103,255,.12);color:#d8d1ff;font-size:12px;line-height:1.35;overflow-wrap:anywhere;}
-.gallery-detail-tag-empty{color:#aeb6d0;font-size:12px;text-align:center;padding:4px 0;}
