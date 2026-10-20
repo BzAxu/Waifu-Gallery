@@ -32,6 +32,20 @@
   const lightboxImage = document.getElementById("galleryLightboxImage");
   const lightboxTitle = document.getElementById("galleryLightboxTitle");
   const sourceLink = document.getElementById("galleryPixivLink");
+  const favoritesView = document.getElementById("galleryFavoritesView");
+  const favoritesGrid = document.getElementById("galleryFavoritesGrid");
+  const favoritesEmpty = document.getElementById("galleryFavoritesEmpty");
+  const favoritesCount = document.getElementById("galleryFavoritesStatus");
+  const sidebarFavoriteCount = document.getElementById("gallerySidebarFavoriteCount");
+  const showFavoriteButtonCheckbox = document.getElementById("galleryShowFavoriteButton");
+  const favoriteDownloadAllButton = document.getElementById("galleryFavoritesDownloadAll");
+  const favoriteMultiSelectButton = document.getElementById("galleryFavoritesMultiSelect");
+  const favoriteDownloadSelectedButton = document.getElementById("galleryFavoritesDownloadSelected");
+  const favoriteClearSelectedButton = document.getElementById("galleryFavoritesClearSelected");
+  const favoriteClearAllButton = document.getElementById("galleryFavoritesClearAll");
+  const favoriteBackButton = document.getElementById("galleryFavoritesBack");
+  const favoriteEmptyBackButton = document.getElementById("galleryFavoritesEmptyBack");
+  const toast = document.getElementById("toast");
   if (!homePage || !galleryPage || !grid) return;
 
   // Keep API requests inside the gallery subpath when proxied through bzaxu.top.
@@ -403,6 +417,7 @@
   const sidebarBackdrop = document.getElementById("gallerySidebarBackdrop");
   const sidebarCloseButton = document.getElementById("gallerySidebarClose");
   const sidebarTagsButton = document.getElementById("gallerySidebarTags");
+  const sidebarFavoritesButton = document.getElementById("gallerySidebarFavorites");
   const sidebarSettingsButton = document.getElementById("gallerySidebarSettings");
 
   // Modal priority follows the intended visual stack: preview > tag picker > settings.
@@ -541,8 +556,292 @@
   let scrollObserver = null;
   let currentRoute = "home";
   let lightboxTrigger = null;
+  let lightboxSource = "gallery";
   let currentSourceName = "图片源";
   let checkingProviders = false;
+  const favoritesStorageKey = "bzaxu-gallery-favorites-v1";
+  const favoriteButtonStorageKey = "bzaxu-gallery-show-favorite-button";
+  let favorites = readStoredFavorites();
+  let showFavoriteButton = readFavoriteButtonPreference();
+  let favoritesSelectionMode = false;
+  let selectedFavoriteUrls = new Set();
+  let downloadingFavorites = false;
+  let toastTimer = 0;
+
+  function readStoredFavorites() {
+    try {
+      const value = JSON.parse(localStorage.getItem(favoritesStorageKey) || "[]");
+      if (!Array.isArray(value)) return [];
+      const unique = new Map();
+      for (const item of value) {
+        if (!item || typeof item.url !== "string" ||
+            !(item.url.startsWith("https://") || item.url.startsWith("http://"))) continue;
+        if (unique.has(item.url)) continue;
+        unique.set(item.url, {
+          url: item.url,
+          title: typeof item.title === "string" ? item.title : "随机插画",
+          source: typeof item.source === "string" ? item.source : "图片源",
+          addedAt: Number.isFinite(Number(item.addedAt)) ? Number(item.addedAt) : Date.now()
+        });
+      }
+      return [...unique.values()];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function readFavoriteButtonPreference() {
+    try { return localStorage.getItem(favoriteButtonStorageKey) !== "false"; } catch (_) { return true; }
+  }
+
+  function saveStoredFavorites() {
+    try {
+      localStorage.setItem(favoritesStorageKey, JSON.stringify(favorites));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function showToast(message) {
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add("show");
+    if (toastTimer) window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => toast.classList.remove("show"), 2400);
+  }
+
+  function updateFavoriteButton(button, url) {
+    const active = favorites.some((item) => item.url === url);
+    button.classList.toggle("is-favorite", active);
+    button.setAttribute("aria-pressed", String(active));
+    button.setAttribute("aria-label", active ? "从本地收藏夹移除" : "加入本地收藏夹");
+    button.title = active ? "已收藏，点击移除" : "加入本地收藏夹";
+    button.hidden = !showFavoriteButton;
+  }
+
+  function syncFavoriteButtons() {
+    grid.querySelectorAll(".gallery-favorite-toggle").forEach((button) => {
+      updateFavoriteButton(button, button.dataset.sourceUrl || "");
+    });
+  }
+
+  function syncFavoriteToolbar() {
+    const count = favorites.length;
+    const selected = selectedFavoriteUrls.size;
+    if (sidebarFavoriteCount) sidebarFavoriteCount.textContent = String(count);
+    if (favoritesCount) {
+      favoritesCount.textContent = favoritesSelectionMode
+        ? `已选 ${selected} / ${count} 张 · 本地保存`
+        : `共 ${count} 张 · 保存在当前浏览器`;
+    }
+    if (favoriteDownloadAllButton) favoriteDownloadAllButton.disabled = count === 0 || downloadingFavorites;
+    if (favoriteMultiSelectButton) {
+      favoriteMultiSelectButton.disabled = count === 0 || downloadingFavorites;
+      favoriteMultiSelectButton.textContent = favoritesSelectionMode ? "取消多选" : "多选";
+      favoriteMultiSelectButton.setAttribute("aria-pressed", String(favoritesSelectionMode));
+    }
+    if (favoriteDownloadSelectedButton) favoriteDownloadSelectedButton.disabled = !favoritesSelectionMode || selected === 0 || downloadingFavorites;
+    if (favoriteClearSelectedButton) favoriteClearSelectedButton.disabled = !favoritesSelectionMode || selected === 0 || downloadingFavorites;
+    if (favoriteClearAllButton) favoriteClearAllButton.disabled = count === 0 || downloadingFavorites;
+  }
+
+  function updateFavoritePreference() {
+    showFavoriteButton = Boolean(showFavoriteButtonCheckbox?.checked);
+    try { localStorage.setItem(favoriteButtonStorageKey, String(showFavoriteButton)); } catch (_) {}
+    syncFavoriteButtons();
+    showToast(showFavoriteButton ? "已显示缩略图收藏按钮" : "已隐藏缩略图收藏按钮");
+  }
+
+  function toggleFavorite(url, title = "随机插画", source = "图片源") {
+    const existingIndex = favorites.findIndex((item) => item.url === url);
+    let message;
+    if (existingIndex >= 0) {
+      favorites.splice(existingIndex, 1);
+      selectedFavoriteUrls.delete(url);
+      message = "已从本地收藏夹移除";
+    } else {
+      favorites.unshift({ url, title, source, addedAt: Date.now() });
+      message = "已加入本地收藏夹";
+    }
+    const persisted = saveStoredFavorites();
+    syncFavoriteButtons();
+    renderFavorites();
+    showToast(persisted ? message : message + "，但浏览器存储不可用，刷新后可能丢失");
+  }
+
+  function removeFavoriteUrls(urls) {
+    const removeSet = new Set(urls);
+    const before = favorites.length;
+    favorites = favorites.filter((item) => !removeSet.has(item.url));
+    removeSet.forEach((url) => selectedFavoriteUrls.delete(url));
+    if (favorites.length === before) return;
+    if (!favorites.length) favoritesSelectionMode = false;
+    const persisted = saveStoredFavorites();
+    syncFavoriteButtons();
+    renderFavorites();
+    showToast(persisted ? "已清除所选收藏" : "已暂时清除，但浏览器存储不可用，刷新后可能恢复");
+  }
+
+  function renderFavorites() {
+    if (!favoritesGrid || !favoritesEmpty) return;
+    if (!favorites.length) {
+      favoritesSelectionMode = false;
+      selectedFavoriteUrls.clear();
+    }
+    const stillSaved = new Set(favorites.map((item) => item.url));
+    selectedFavoriteUrls = new Set([...selectedFavoriteUrls].filter((url) => stillSaved.has(url)));
+    favoritesEmpty.hidden = favorites.length > 0;
+    favoritesGrid.hidden = favorites.length === 0;
+    favoritesGrid.replaceChildren();
+    for (const item of favorites) {
+      const card = document.createElement("article");
+      card.className = "gallery-favorite-card";
+      if (selectedFavoriteUrls.has(item.url)) card.classList.add("is-selected");
+
+      const selection = document.createElement("label");
+      selection.className = "gallery-favorite-selection";
+      selection.hidden = !favoritesSelectionMode;
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = selectedFavoriteUrls.has(item.url);
+      checkbox.setAttribute("aria-label", "选择 " + (item.title || "收藏图片"));
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) selectedFavoriteUrls.add(item.url);
+        else selectedFavoriteUrls.delete(item.url);
+        card.classList.toggle("is-selected", checkbox.checked);
+        syncFavoriteToolbar();
+      });
+      selection.append(checkbox, document.createTextNode("选择"));
+
+      const preview = document.createElement("button");
+      preview.type = "button";
+      preview.className = "gallery-favorite-preview";
+      preview.dataset.sourceUrl = item.url;
+      preview.dataset.title = item.title || "随机插画";
+      preview.setAttribute("aria-label", "预览 " + preview.dataset.title);
+      const image = document.createElement("img");
+      image.src = item.url;
+      image.alt = item.title || "收藏的插画";
+      image.loading = "lazy";
+      image.decoding = "async";
+      preview.append(image);
+      preview.addEventListener("click", () => openGalleryLightbox(item.url, item.title, preview, "favorites"));
+
+      const details = document.createElement("div");
+      details.className = "gallery-favorite-details";
+      const title = document.createElement("strong");
+      title.textContent = item.title || "随机插画";
+      const meta = document.createElement("span");
+      const date = new Date(item.addedAt);
+      meta.textContent = (item.source || "图片源") + " · " + (Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString());
+      details.append(title, meta);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "gallery-favorite-remove";
+      remove.textContent = "移除";
+      remove.setAttribute("aria-label", "从收藏夹移除 " + (item.title || "图片"));
+      remove.addEventListener("click", () => removeFavoriteUrls([item.url]));
+      card.append(selection, preview, details, remove);
+      favoritesGrid.append(card);
+    }
+    syncFavoriteToolbar();
+  }
+
+  async function downloadFavoriteImage(url, index = 1) {
+    const response = await fetch(galleryApiUrl("?mode=download&url=" + encodeURIComponent(url)), { cache: "no-store" });
+    if (!response.ok) throw new Error("图片下载失败");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    const type = blob.type.toLowerCase();
+    const extension = type.includes("png") ? "png" : type.includes("webp") ? "webp" : type.includes("gif") ? "gif" : type.includes("avif") ? "avif" : "jpg";
+    link.download = `BzAxu-favorite-${Date.now()}-${String(index).padStart(3, "0")}.${extension}`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+  }
+
+  async function runFavoriteDownloads(urls) {
+    if (!urls.length || downloadingFavorites) return;
+    downloadingFavorites = true;
+    syncFavoriteToolbar();
+    let succeeded = 0;
+    let failed = 0;
+    for (let index = 0; index < urls.length; index++) {
+      if (favoritesCount) favoritesCount.textContent = `正在下载 ${index + 1} / ${urls.length}…`;
+      try {
+        await downloadFavoriteImage(urls[index], index + 1);
+        succeeded++;
+      } catch (error) {
+        console.warn("Favorite image download failed:", error);
+        failed++;
+      }
+      if (index < urls.length - 1) await new Promise((resolve) => window.setTimeout(resolve, 180));
+    }
+    downloadingFavorites = false;
+    syncFavoriteToolbar();
+    const summary = `下载任务结束：已触发 ${succeeded} 张，失败 ${failed} 张`;
+    if (favoritesCount) favoritesCount.textContent = summary;
+    showToast(summary);
+  }
+
+  function openGalleryLightbox(url, title, trigger, source = "gallery") {
+    lightboxTrigger = trigger;
+    lightboxSource = source;
+    lightboxImage.src = url;
+    lightboxTitle.textContent = title || "随机插画";
+    sourceLink.href = url;
+    sourceLink.textContent = "查看原图 ↗";
+    downloadButton.dataset.downloadUrl = url;
+    downloadButton.disabled = false;
+    downloadButton.textContent = "↓ 下载图片";
+    openAnimatedDialog(lightbox, "gallery-open");
+    if (!history.state || !history.state.galleryLightbox) {
+      history.pushState({ ...(history.state || {}), view: currentRoute, galleryLightbox: true }, "", window.location.href);
+    }
+    lightbox.querySelector("[data-gallery-close]").focus();
+  }
+
+  if (showFavoriteButtonCheckbox) {
+    showFavoriteButtonCheckbox.checked = showFavoriteButton;
+    showFavoriteButtonCheckbox.addEventListener("change", updateFavoritePreference);
+  }
+  if (sidebarFavoritesButton) sidebarFavoritesButton.addEventListener("click", () => {
+    closeSidebar({ restoreFocus: false });
+    renderRoute("favorites", { updateHistory: true });
+  });
+  if (favoriteBackButton) favoriteBackButton.addEventListener("click", () => renderRoute("gallery", { updateHistory: true, replace: true }));
+  if (favoriteEmptyBackButton) favoriteEmptyBackButton.addEventListener("click", () => renderRoute("gallery", { updateHistory: true, replace: true }));
+  if (favoriteMultiSelectButton) favoriteMultiSelectButton.addEventListener("click", () => {
+    favoritesSelectionMode = !favoritesSelectionMode;
+    selectedFavoriteUrls.clear();
+    renderFavorites();
+  });
+  if (favoriteClearSelectedButton) favoriteClearSelectedButton.addEventListener("click", () => {
+    if (!selectedFavoriteUrls.size) return;
+    removeFavoriteUrls([...selectedFavoriteUrls]);
+  });
+  if (favoriteClearAllButton) favoriteClearAllButton.addEventListener("click", () => {
+    if (!favorites.length || !window.confirm("确定清除本地收藏夹中的全部图片吗？此操作无法撤销。")) return;
+    favorites = [];
+    selectedFavoriteUrls.clear();
+    const persisted = saveStoredFavorites();
+    favoritesSelectionMode = false;
+    syncFavoriteButtons();
+    renderFavorites();
+    showToast(persisted ? "已清除全部收藏" : "已暂时清除，但浏览器存储不可用，刷新后可能恢复");
+  });
+  if (favoriteDownloadAllButton) favoriteDownloadAllButton.addEventListener("click", () => runFavoriteDownloads(favorites.map((item) => item.url)));
+  if (favoriteDownloadSelectedButton) favoriteDownloadSelectedButton.addEventListener("click", () => {
+    const selected = favorites.filter((item) => selectedFavoriteUrls.has(item.url)).map((item) => item.url);
+    runFavoriteDownloads(selected);
+  });
+  renderFavorites();
+  syncFavoriteButtons();
 
   function transition(callback) {
     if (document.startViewTransition) document.startViewTransition(callback);
@@ -550,23 +849,27 @@
   }
 
   function renderRoute(route, { updateHistory = false, replace = false } = {}) {
-    currentRoute = route === "gallery" ? "gallery" : "home";
+    currentRoute = route === "gallery" || route === "favorites" ? route : "home";
     transition(() => {
-      const isGallery = currentRoute === "gallery";
-      document.body.classList.toggle("gallery-view-active", isGallery);
-      homePage.hidden = isGallery;
-      galleryPage.hidden = !isGallery;
-      if (footer) footer.hidden = isGallery;
+      const pageActive = currentRoute !== "home";
+      document.body.classList.toggle("gallery-view-active", pageActive);
+      homePage.hidden = pageActive;
+      galleryPage.hidden = !pageActive;
+      const galleryContent = galleryPage.querySelector(".gallery-content");
+      if (galleryContent) galleryContent.hidden = currentRoute !== "gallery";
+      if (favoritesView) favoritesView.hidden = currentRoute !== "favorites";
+      if (footer) footer.hidden = pageActive;
       window.scrollTo({ top: 0, behavior: "auto" });
       if (updateHistory) {
         const url = new URL(window.location.href);
-        if (isGallery) url.searchParams.set("page", "gallery");
-        else url.searchParams.delete("page");
+        if (currentRoute === "home") url.searchParams.delete("page");
+        else url.searchParams.set("page", currentRoute);
         history[replace ? "replaceState" : "pushState"]({ view: currentRoute }, "", url);
       }
     });
     if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 100 });
-    if (currentRoute === "gallery") checkProviderStatus();
+    if (currentRoute === "favorites") renderFavorites();
+    if (currentRoute !== "home") checkProviderStatus();
   }
 
   document.addEventListener("click", (event) => {
@@ -589,9 +892,11 @@
       closeLightbox({ fromHistory: true });
       return;
     }
-    const isGalleryEntry = (history.state && history.state.view === "gallery") ||
-      new URL(window.location.href).searchParams.get("page") === "gallery";
-    const nextRoute = isGalleryEntry ? "gallery" : "home";
+    const stateView = history.state && history.state.view;
+    const pageParam = new URL(window.location.href).searchParams.get("page");
+    const nextRoute = stateView === "favorites" || pageParam === "favorites"
+      ? "favorites"
+      : stateView === "gallery" || pageParam === "gallery" ? "gallery" : "home";
     // Closing a history-backed preview returns to the same gallery entry. Do not
     // call renderRoute in that case, because it would jump the page back to top.
     if (nextRoute !== currentRoute) renderRoute(nextRoute);
@@ -741,18 +1046,29 @@
 
     // Build the card now, but do not attach it to the gallery until the image
     // has loaded and decoded successfully.
-    const card = document.createElement("button");
-    card.type = "button";
+    const card = document.createElement("div");
     card.className = "gallery-item";
     const revealIndex = batch ? batch.added : 0;
     card.style.setProperty("--gallery-reveal-delay", Math.min(revealIndex, 8) * 16 + "ms");
-    card.setAttribute("aria-label", "查看插画");
+    const previewButton = document.createElement("button");
+    previewButton.type = "button";
+    previewButton.className = "gallery-item-preview";
+    previewButton.setAttribute("aria-label", "查看插画");
+    previewButton.dataset.sourceUrl = url;
+    previewButton.dataset.title = "随机插画";
     const img = document.createElement("img");
     img.loading = "eager";
     img.decoding = "async";
     img.alt = "插画";
     img.className = "is-loading";
-    card.append(img);
+    previewButton.append(img);
+    const favoriteButton = document.createElement("button");
+    favoriteButton.type = "button";
+    favoriteButton.className = "gallery-favorite-toggle";
+    favoriteButton.dataset.sourceUrl = url;
+    favoriteButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.2 5.2 0 0 0-7.4 0L12 6l-1.4-1.4a5.2 5.2 0 0 0-7.4 7.4l1.4 1.4L12 20.8l7.4-7.4 1.4-1.4a5.2 5.2 0 0 0 0-7.4Z"/></svg>';
+    updateFavoriteButton(favoriteButton, url);
+    card.append(previewButton, favoriteButton);
 
     card.dataset.sourceUrl = url;
     card.dataset.title = "随机插画";
@@ -834,20 +1150,11 @@
     // Do not discard slow images on a fixed timer; only a real error or refresh cancels them.
     img.src = url;
 
-    card.addEventListener("click", () => {
-      lightboxTrigger = card;
-      lightboxImage.src = url;
-      lightboxTitle.textContent = card.dataset.title;
-      sourceLink.href = url;
-      sourceLink.textContent = "查看原图 ↗";
-      downloadButton.dataset.downloadUrl = url;
-      downloadButton.disabled = false;
-      downloadButton.textContent = "↓ 下载图片";
-      openAnimatedDialog(lightbox, "gallery-open");
-      if (!history.state || !history.state.galleryLightbox) {
-        history.pushState({ ...(history.state || {}), view: "gallery", galleryLightbox: true }, "", window.location.href);
-      }
-      lightbox.querySelector("[data-gallery-close]").focus();
+    previewButton.addEventListener("click", () => openGalleryLightbox(url, card.dataset.title, previewButton, "gallery"));
+    favoriteButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleFavorite(url, card.dataset.title, sourceName);
     });
     return true;
   }
@@ -1021,8 +1328,9 @@
     lightboxCloseFromHistory = fromHistory;
     closeAnimatedDialog(lightbox, "gallery-open", () => {
       lightboxImage.removeAttribute("src");
-      if (lightboxTrigger) lightboxTrigger.focus();
+      if (lightboxTrigger && lightboxTrigger.isConnected) lightboxTrigger.focus();
       lightboxTrigger = null;
+      lightboxSource = "gallery";
       // The initial gallery entry keeps view:"gallery" in history.state, so popping
       // the preview marker closes the dialog without leaving the gallery.
       const shouldGoBack = !lightboxCloseFromHistory && history.state && history.state.galleryLightbox;
@@ -1043,7 +1351,9 @@
       return;
     }
     if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
-      const cards = [...grid.querySelectorAll(".gallery-item")];
+      const cards = lightboxSource === "favorites"
+        ? [...favoritesGrid.querySelectorAll(".gallery-favorite-preview")]
+        : [...grid.querySelectorAll(".gallery-item-preview")];
       const index = cards.indexOf(lightboxTrigger);
       const next = cards[index + (event.key === "ArrowRight" ? 1 : -1)];
       if (next) {
@@ -1296,8 +1606,8 @@
     scrollObserver.observe(moreButton);
   }
 
-  const initialRoute = "gallery";
-  const initialHistoryState = { ...(history.state || {}), view: "gallery" };
+  const initialRoute = new URL(window.location.href).searchParams.get("page") === "favorites" ? "favorites" : "gallery";
+  const initialHistoryState = { ...(history.state || {}), view: initialRoute };
   delete initialHistoryState.galleryLightbox;
   history.replaceState(initialHistoryState, "", window.location.href);
   renderRoute(initialRoute);

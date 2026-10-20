@@ -28,6 +28,7 @@
         <button class="gallery-sidebar-close" id="gallerySidebarClose" type="button" aria-label="关闭侧栏">×</button>
       </div>
       <button class="gallery-sidebar-action" id="gallerySidebarTags" type="button"><span class="gallery-sidebar-action-icon" aria-hidden="true">⌕</span><span><strong>标签筛选</strong><small>按类别选择和组合标签</small></span><span class="gallery-sidebar-chevron" aria-hidden="true">›</span></button>
+      <button class="gallery-sidebar-action" id="gallerySidebarFavorites" type="button"><span class="gallery-sidebar-action-icon" aria-hidden="true">♡</span><span><strong>本地收藏夹</strong><small>保存喜欢的图片与批量下载</small></span><span class="gallery-sidebar-chevron" aria-hidden="true">›</span><span class="gallery-sidebar-count" id="gallerySidebarFavoriteCount">0</span></button>
       <button class="gallery-sidebar-action" id="gallerySidebarSettings" type="button"><span class="gallery-sidebar-action-icon" aria-hidden="true">⚙</span><span><strong>画廊设置</strong><small>图片来源、列数与服务状态</small></span><span class="gallery-sidebar-chevron" aria-hidden="true">›</span></button>
       <div class="gallery-sidebar-foot">Waifu Gallery <span>·</span> 二次元图片画廊</div>
     </aside>
@@ -43,6 +44,31 @@
       <button class="button gallery-more" id="galleryMore" type="button">再看一些 <span aria-hidden="true">↓</span></button>
     </div>
     </div>
+    <section class="gallery-favorites-view" id="galleryFavoritesView" aria-labelledby="galleryFavoritesTitle" hidden>
+      <div class="gallery-favorites-heading">
+        <button class="button gallery-favorites-back" id="galleryFavoritesBack" type="button">← 返回画廊</button>
+        <div class="gallery-favorites-title-wrap">
+          <span class="gallery-favorites-eyebrow">LOCAL / COLLECTION</span>
+          <h1 id="galleryFavoritesTitle">本地收藏夹</h1>
+          <p>仅保存在当前浏览器，不会上传到服务器。</p>
+        </div>
+      </div>
+      <div class="gallery-favorites-toolbar" aria-label="收藏夹操作">
+        <button class="button" id="galleryFavoritesDownloadAll" type="button">↓ 一键下载</button>
+        <button class="button" id="galleryFavoritesMultiSelect" type="button" aria-pressed="false">多选</button>
+        <button class="button" id="galleryFavoritesDownloadSelected" type="button" disabled>下载</button>
+        <button class="button" id="galleryFavoritesClearSelected" type="button" disabled>清除</button>
+        <button class="button gallery-favorites-danger" id="galleryFavoritesClearAll" type="button">清除全部</button>
+        <span class="gallery-favorites-status" id="galleryFavoritesStatus" role="status" aria-live="polite">共 0 张图片</span>
+      </div>
+      <div class="gallery-favorites-empty" id="galleryFavoritesEmpty">
+        <span aria-hidden="true">♡</span>
+        <h2>还没有收藏图片</h2>
+        <p>回到画廊，点击缩略图右下角的爱心即可收藏。</p>
+        <button class="button" id="galleryFavoritesEmptyBack" type="button">去逛画廊</button>
+      </div>
+      <div class="gallery-favorites-grid" id="galleryFavoritesGrid" aria-label="本地收藏图片列表" hidden></div>
+    </section>
   </main>
 <footer hidden><div class="foot-line"></div>Waifu Gallery · 二次元图片聚合画廊</footer>
 <section class="gallery-tag-dialog" id="galleryTagDialog" role="dialog" aria-modal="true" aria-labelledby="galleryTagTitle" hidden>
@@ -86,6 +112,10 @@
           </select>
         </label>
         <span class="gallery-status">图片按原始长宽比完整显示，不再裁切。</span>
+      </div>
+      <div class="gallery-settings-section gallery-favorite-setting">
+        <label class="gallery-favorite-setting-label" for="galleryShowFavoriteButton"><input id="galleryShowFavoriteButton" type="checkbox" checked> <span>显示缩略图收藏按钮</span></label>
+        <span class="gallery-status">关闭后只隐藏图片上的收藏入口，不会删除已保存的收藏。</span>
       </div>
       <div class="gallery-settings-section">
         <label class="gallery-source-label" for="gallerySourceSelect">图片源
