@@ -27,7 +27,7 @@ const PROVIDERS = [
     id: "nekosmoe",
     name: "Nekos.moe",
     kind: "SFW 动漫图片 · 随机",
-    url: "https://nekos.moe/api/v1/random/image?nsfw=false&count=10",
+    url: "https://nekos.moe/api/v1/random/image?nsfw=true&count=10",
     headers: { "Accept": "application/json", "User-Agent": "Waifu-Gallery/1.0 (public SFW image gallery)" },
     batchSize: 10,
     parse: (data) => Array.isArray(data.images)
@@ -54,7 +54,7 @@ const PROVIDERS = [
     id: "waifuim",
     name: "Waifu.im",
     kind: "SFW 随机动漫图 · 安全评级",
-    url: "https://api.waifu.im/images?IsNsfw=False&PageSize=10",
+    url: "https://api.waifu.im/images?IsNsfw=True&PageSize=10",
     headers: { "Accept": "application/json" },
     batchSize: 10,
     parse: (data) => Array.isArray(data.items) ? data.items.map((item) => item.url) : []
