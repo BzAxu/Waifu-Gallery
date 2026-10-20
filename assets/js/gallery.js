@@ -1863,7 +1863,7 @@
         const params = new URLSearchParams({ source, count: String(requestedCount) });
         const requestedTags = tagInput && tagFilteringAvailable() ? tagInput.value.trim() : "";
         if (requestedTags) params.set("tags", requestedTags);
-        if (blockedTags.length && (source === "auto" || source === "safebooru" || source === "waifuim")) params.set("blockedTags", blockedTags.join(","));
+        if (blockedTags.length && (source === "auto" || source === "safebooru" || source === "waifuim" || source === "nekosapi")) params.set("blockedTags", blockedTags.join(","));
         const response = await fetch(galleryApiUrl("?" + params.toString()), {
           method: "GET",
           headers: { "Accept": "application/json" },
@@ -2191,7 +2191,7 @@
     selectedTags = [...new Set((tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter((tag) => /^[\p{L}\p{N}_-]{1,64}$/u.test(tag)))];
   }
   function activeTagList() { return tagSelectionMode === "block" ? blockedTags : selectedTags; }
-  function blockingTagsAvailable() { return !sourceSelect || ["auto", "safebooru", "waifuim"].includes(sourceSelect.value); }
+  function blockingTagsAvailable() { return !sourceSelect || ["auto", "safebooru", "waifuim", "nekosapi"].includes(sourceSelect.value); }
   function syncTagModeButtons() {
     if (tagModeIncludeButton) {
       tagModeIncludeButton.classList.toggle("is-active", tagSelectionMode === "include");
