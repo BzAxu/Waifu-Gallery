@@ -779,6 +779,7 @@
       message = "已从本地收藏夹移除";
     } else {
       favorites.unshift({ url, title, source, addedAt: Date.now() });
+      favoritesPage = 0;
       message = "已加入本地收藏夹";
     }
     const persisted = saveStoredFavorites();
@@ -794,6 +795,7 @@
       return;
     }
     favorites.unshift({ url, title, source, addedAt: Date.now() });
+    favoritesPage = 0;
     const persisted = saveStoredFavorites();
     syncFavoriteButtons();
     refreshFavoritesView();
