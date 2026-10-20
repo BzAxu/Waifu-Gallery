@@ -12,7 +12,13 @@ const PROVIDERS = [
       tags.forEach((tag) => target.searchParams.append("tags", tag));
       return target.toString();
     },
-    parse: (data) => Array.isArray(data) ? data.map((item) => item.url) : []
+    parse: (data) => Array.isArray(data) ? data.map((item) => item.url) : [],
+    parseItems: (data) => Array.isArray(data) ? data.map((item) => ({
+      url: item && item.url,
+      tags: Array.isArray(item && item.tags) ? item.tags.map((tag) =>
+        typeof tag === "string" ? tag : tag && (tag.name || tag.slug || tag.tag)
+      ).filter(Boolean) : null
+    })) : []
   },
   {
     id: "nekosbest",
@@ -67,7 +73,13 @@ const PROVIDERS = [
       blockedTags.forEach((tag) => target.searchParams.append("ExcludedTags", tag));
       return target.toString();
     },
-    parse: (data) => Array.isArray(data.items) ? data.items.map((item) => item.url) : []
+    parse: (data) => Array.isArray(data.items) ? data.items.map((item) => item.url) : [],
+    parseItems: (data) => Array.isArray(data.items) ? data.items.map((item) => ({
+      url: item && item.url,
+      tags: Array.isArray(item && item.tags) ? item.tags.map((tag) =>
+        typeof tag === "string" ? tag : tag && (tag.name || tag.slug || tag.tag)
+      ).filter(Boolean) : null
+    })) : []
   },
   {
     id: "waifupics-waifu",
@@ -105,7 +117,11 @@ const PROVIDERS = [
       target.searchParams.set("limit", "20");
       return target.toString();
     },
-    parse: (data) => Array.isArray(data) ? data.map((item) => item.file_url).filter((url) => typeof url === "string" && url.length > 0) : []
+    parse: (data) => Array.isArray(data) ? data.map((item) => item.file_url).filter((url) => typeof url === "string" && url.length > 0) : [],
+    parseItems: (data) => Array.isArray(data) ? data.map((item) => ({
+      url: item && item.file_url,
+      tags: typeof (item && item.tags) === "string" ? item.tags.split(/\\s+/).filter(Boolean) : null
+    })) : []
   }
 ];
 
@@ -114,6 +130,10 @@ const TIMEOUT_MS = 30000;
 
 function json(body, status = 200) {
   return Response.json(body, { status, headers: CACHE_HEADERS });
+}
+
+function normalizeTag(value) {
+  return String(value || "").trim().toLowerCase().replace(/[\\s-]+/g, "_");
 }
 
 async function requestProvider(provider, tags = [], blockedTags = []) {
@@ -140,11 +160,25 @@ async function requestProvider(provider, tags = [], blockedTags = []) {
       return { provider: provider.id, name: provider.name, ok: false, latency: elapsed, error: "没有取得图片地址" };
     }
     const data = await response.json();
-    const urls = provider.parse(data).filter((url) => typeof url === "string" && url.startsWith("https://"));
-    if (!urls.length) {
-      return { provider: provider.id, name: provider.name, ok: false, latency: elapsed, error: "返回数据中没有可用图片" };
+    let files;
+    if (blockedTags.length && provider.parseItems) {
+      const items = provider.parseItems(data);
+      const blocked = new Set(blockedTags.map(normalizeTag));
+      // Fail closed: when a provider doesn't return usable tag metadata, never
+      // return an image that might violate the user's blocked-tag preferences.
+      files = items.filter((item) => {
+        if (!item || typeof item.url !== "string" || !item.url.startsWith("https://") || !Array.isArray(item.tags)) return false;
+        const itemTags = new Set(item.tags.map(normalizeTag));
+        return ![...blocked].some((tag) => itemTags.has(tag));
+      }).map((item) => item.url);
+    } else {
+      files = provider.parse(data).filter((url) => typeof url === "string" && url.startsWith("https://"));
+      if (blockedTags.length) files = [];
     }
-    return { provider: provider.id, name: provider.name, ok: true, latency: elapsed, files: urls };
+    if (!files.length) {
+      return { provider: provider.id, name: provider.name, ok: false, latency: elapsed, error: blockedTags.length ? "没有找到带有可验证标签且符合屏蔽条件的图片" : "返回数据中没有可用图片" };
+    }
+    return { provider: provider.id, name: provider.name, ok: true, latency: elapsed, files };
   } catch (error) {
     return {
       provider: provider.id,
@@ -312,10 +346,10 @@ export async function onRequestGet({ request }) {
   }
   const candidates = selected === "auto"
     ? [...activeProviders].filter((provider) => blockedTags.length
-        ? provider.supportsBlockedTags
+        ? provider.supportsBlockedTags && typeof provider.parseItems === "function"
         : (!tags.length || provider.supportsTags))
         .sort((a, b) => blockedTags.length
-          ? (a.id === "waifuim" ? -1 : b.id === "waifuim" ? 1 : (b.batchSize || 0) - (a.batchSize || 0))
+          ? (a.id === "nekosapi" ? -1 : b.id === "nekosapi" ? 1 : a.id === "waifuim" ? -1 : b.id === "waifuim" ? 1 : (b.batchSize || 0) - (a.batchSize || 0))
           : (b.batchSize || 0) - (a.batchSize || 0))
     : activeProviders.filter((provider) => provider.id === selected);
 
