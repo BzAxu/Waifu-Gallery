@@ -99,10 +99,11 @@
     <button class="gallery-tag-close" type="button" data-gallery-tag-close aria-label="关闭">×</button>
     <div class="gallery-settings-eyebrow">GALLERY / TAGS</div>
     <h2 id="galleryTagTitle">选择图片标签</h2>
-    <p class="gallery-settings-description" id="galleryTagDescription">选择筛选或屏蔽标签，设置会保存在本地。</p>
-    <div class="gallery-tag-mode-switch" role="group" aria-label="标签模式"><button type="button" class="is-active" id="galleryTagModeInclude" aria-pressed="true">筛选标签</button><button type="button" id="galleryTagModeBlock" aria-pressed="false">屏蔽标签</button></div>
-    <div class="gallery-tag-selected-head"><strong id="galleryTagSelectedTitle">已选标签</strong><button class="gallery-tag-clear" id="galleryTagClear" type="button">清空</button></div>
-    <div class="gallery-tag-selected" id="galleryTagSelected" aria-live="polite"><span class="gallery-tag-none">还没有选择标签</span></div>
+    <p class="gallery-settings-description" id="galleryTagDescription">同一份标签列表同时显示筛选与屏蔽状态。切换操作不会切换或重置列表，设置保存在本地。</p>
+    <div class="gallery-tag-mode-switch" role="group" aria-label="标签操作模式"><button type="button" class="is-active" id="galleryTagModeInclude" aria-pressed="true">√ 筛选操作</button><button type="button" id="galleryTagModeBlock" aria-pressed="false">× 屏蔽操作</button></div>
+    <div class="gallery-tag-state-legend" aria-label="标签状态说明"><span><b>+</b> 未设置</span><span><b>√</b> 筛选</span><span><b>×</b> 屏蔽</span></div>
+    <div class="gallery-tag-selected-head"><strong id="galleryTagSelectedTitle">当前标签状态</strong><button class="gallery-tag-clear" id="galleryTagClear" type="button">清空当前操作</button></div>
+    <div class="gallery-tag-selected" id="galleryTagSelected" aria-live="polite"><span class="gallery-tag-none">还没有选择或屏蔽标签</span></div>
     <div class="gallery-tag-category-tabs" id="galleryTagCategoryTabs" role="tablist" aria-label="标签类别">
       <button type="button" class="is-active" data-tag-category="hair" role="tab" aria-selected="true">发色</button>
       <button type="button" data-tag-category="features" role="tab" aria-selected="false">角色特征</button>
