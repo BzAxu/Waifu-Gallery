@@ -2303,11 +2303,3 @@ body.gallery-download-confirm-open{overflow:hidden}
 .gallery-tag-selected-chip.is-selected{border-color:rgba(169,155,255,.3);color:#e4ddff;background:rgba(169,155,255,.13)}
 .gallery-tag-selected-chip button{margin-left:2px}
 @media(max-width:520px){.gallery-tag-state-legend{gap:7px 10px}.gallery-tag-mode-switch button{font-size:11px}}
-
-/* Viewport-triggered gallery card entrance, modeled on the homepage observer. */
-#galleryGrid .gallery-item--loaded:not(.is-card-visible){opacity:0;animation:none!important;filter:none!important}
-#galleryGrid .gallery-item--loaded.is-card-visible{opacity:1;animation:galleryCardEnterElegant 760ms var(--motion-smooth,cubic-bezier(.22,1,.36,1)) both!important;animation-delay:var(--gallery-reveal-delay,0ms)!important}
-@media(prefers-reduced-motion:reduce){
-  #galleryGrid .gallery-item--loaded:not(.is-card-visible){opacity:1;animation:none!important}
-  #galleryGrid .gallery-item--loaded.is-card-visible{opacity:1;animation:none!important}
-}
