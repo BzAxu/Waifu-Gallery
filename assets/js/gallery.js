@@ -2339,14 +2339,14 @@
   function updateTagDialogHint() {
     if (!tagDialogHint) return;
     tagDialogHint.textContent = !tagFilteringAvailable()
-      ? "当前图片源不支持标签筛选，请切换到自动模式、Nekos API 或 Safebooru。"
+      ? "当前图片源不支持标签筛选，请切换到自动模式、Nekos API、Waifu.im 或 Safebooru。"
       : tagSelectionMode === "block" && !blockingTagsAvailable()
-        ? "当前图片源不支持屏蔽标签；切换到自动模式或 Safebooru 后生效。"
+        ? "当前图片源不支持屏蔽标签；切换到自动模式、Waifu.im 或 Safebooru 后生效。"
         : sourceSelect && sourceSelect.value === "safebooru"
           ? (tagSelectionMode === "block" ? "屏蔽标签会从 Safebooru 结果中排除。" : "Safebooru 将使用安全评级（safe）进行筛选。")
           : sourceSelect && sourceSelect.value === "nekosapi"
-            ? "Nekos API 支持筛选标签；屏蔽标签需切换到自动模式或 Safebooru。"
-            : (tagSelectionMode === "block" ? "自动模式会优先使用支持排除标签的 Safebooru。" : "自动模式只会查询支持标签的图片源。标签越多，筛选条件越严格。");
+            ? "Nekos API 支持筛选标签；屏蔽标签需切换到自动模式、Waifu.im 或 Safebooru。"
+            : (tagSelectionMode === "block" ? "自动模式会优先尝试支持排除标签的 Waifu.im 与 Safebooru。" : "自动模式只会查询支持标签的图片源。标签越多，筛选条件越严格。");
   }
   function openTagDialog() {
     if (!tagDialog) return;
@@ -2405,7 +2405,7 @@
   });
 
   function tagFilteringAvailable() {
-    return !sourceSelect || ["auto", "nekosapi", "safebooru"].includes(sourceSelect.value);
+    return !sourceSelect || ["auto", "nekosapi", "safebooru", "waifuim"].includes(sourceSelect.value);
   }
   function updateTagFilterAvailability() {
     const available = tagFilteringAvailable();
