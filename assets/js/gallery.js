@@ -1398,11 +1398,35 @@
     });
   }
 
+  function renderLightboxTags(rawTags) {
+    const container = document.getElementById("galleryLightboxTags");
+    if (!container) return;
+    let tags = [];
+    try { tags = JSON.parse(rawTags || "[]"); } catch (_) { tags = []; }
+    container.replaceChildren();
+    if (!Array.isArray(tags) || !tags.length) {
+      const emptyTag = document.createElement("span");
+      emptyTag.className = "gallery-detail-tag-empty";
+      emptyTag.textContent = "该图片源未提供标签数据";
+      container.append(emptyTag);
+      return;
+    }
+    for (const tag of tags) {
+      if (typeof tag !== "string" || !tag.trim()) continue;
+      const chip = document.createElement("span");
+      chip.className = "gallery-detail-tag";
+      chip.textContent = tag;
+      chip.title = tag;
+      container.append(chip);
+    }
+  }
+
   function openGalleryLightbox(url, title, trigger, source = "gallery") {
     lightboxTrigger = trigger;
     lightboxSource = source;
     lightboxImage.src = url;
     lightboxTitle.textContent = title || "随机插画";
+    renderLightboxTags(trigger && trigger.dataset ? trigger.dataset.tags : "[]");
     sourceLink.href = url;
     sourceLink.textContent = "查看原图 ↗";
     downloadButton.dataset.downloadUrl = url;
@@ -1692,7 +1716,7 @@
     galleryScrollRevealObserver.observe(card);
   }
 
-  function addImage(url, sourceName = "图片源", batch = null) {
+  function addImage(url, sourceName = "图片源", batch = null, tags = []) {
     if (!url || seen.has(url)) return false;
     seen.add(url);
     const generation = galleryGeneration;
@@ -1709,6 +1733,7 @@
     previewButton.setAttribute("aria-label", "查看插画");
     previewButton.dataset.sourceUrl = url;
     previewButton.dataset.title = "随机插画";
+    previewButton.dataset.tags = JSON.stringify(Array.isArray(tags) ? tags : []);
     const img = document.createElement("img");
     img.loading = "eager";
     img.decoding = "async";
@@ -1878,7 +1903,7 @@
         lastRequestUsedFallback = lastRequestUsedFallback || Boolean(data.fallback);
         for (const url of data.files) {
           if (imageCount() + pendingImageCount() >= targetTotal) break;
-          if (addImage(url, currentSourceName, batch)) batchAdded++;
+          if (addImage(url, currentSourceName, batch, data.tagsByUrl && data.tagsByUrl[url])) batchAdded++;
         }
         if (!imageCount() && !pendingImageCount() && batchAdded === 0) {
           throw new Error("暂时没有获取到图片，请稍后重试");
@@ -2027,6 +2052,7 @@
         lightboxTrigger = next;
         lightboxImage.src = next.dataset.sourceUrl;
         lightboxTitle.textContent = next.dataset.title;
+        renderLightboxTags(next.dataset.tags || "[]");
         sourceLink.href = next.dataset.sourceUrl;
         downloadButton.dataset.downloadUrl = next.dataset.sourceUrl;
         downloadButton.disabled = false;
