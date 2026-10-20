@@ -19,6 +19,8 @@
   const tagDialogOpen = document.getElementById("galleryTagOpen");
   const tagSettingsOpen = document.getElementById("galleryTagSettingsOpen");
   const tagOptions = document.getElementById("galleryTagOptions");
+  const tagSearchInput = document.getElementById("galleryTagSearch");
+  const tagSearchStatus = document.getElementById("galleryTagSearchStatus");
   const tagSelected = document.getElementById("galleryTagSelected");
   const tagCategoryTabs = document.getElementById("galleryTagCategoryTabs");
   const tagClearButton = document.getElementById("galleryTagClear");
@@ -2034,13 +2036,36 @@
       ["original","原创角色"],["fanart","同人作品"],["multiple_girls","多名角色"],["1girl","单人角色"],["2girls","两名角色"],["solo","单人画面"],["chibi","Q版"],["anime_coloring","动画风上色"],["monochrome","黑白画面"],["sketch","草稿风"],["lineart","线稿"],["traditional_media","传统绘画"],["digital_art","数字绘画"],["pixel_art","像素风"],["watercolor","水彩风"],["oil_painting","油画风"],["3d","3D风格"],["realistic","写实风"],["abstract","抽象风"],["minimalism","极简风"],["cute","可爱风"],["kawaii","萌系"],["beautiful","唯美"],["detailed","细节丰富"],["highres","高清"],["absurdres","超高分辨率"],["official_art","官方绘图"],["cover","封面图"],["wallpaper","壁纸"],["transparent_background","透明背景"],["simple_background","简洁背景"],["white_background","白色背景"],["black_background","黑色背景"],["weapon","武器"],["book","书本"],["food","食物"],["music","音乐元素"],["animal","动物"],["bird","鸟类"],["butterfly","蝴蝶"],["flower","单朵花"],["heart","爱心"],["stars","星星装饰"],["jewelry","首饰"],["umbrella","雨伞"],["phone","手机"],["camera","相机"],["sword","剑"],["staff","法杖"],["ribbon","丝带"]
     ]
   };
+  const TAG_TRANSLATIONS = {
+    blue_archive: "蔚蓝档案", bluearchive: "蔚蓝档案", "ブルーアーカイブ": "蔚蓝档案",
+    arknights: "明日方舟", "アークナイツ": "明日方舟", genshin_impact: "原神", "原神": "原神",
+    honkai_impact: "崩坏学园", honkai_star_rail: "崩坏：星穹铁道", "崩壊：スターレイル": "崩坏：星穹铁道",
+    azur_lane: "碧蓝航线", "アズールレーン": "碧蓝航线", fate_grand_order: "命运-冠位指定",
+    vocaloid: "VOCALOID", hatsune_miku: "初音未来", "初音ミク": "初音未来",
+    touhou: "东方 Project", "東方": "东方 Project", kantai_collection: "舰队 Collection",
+    uma_musume: "赛马娘", "ウマ娘": "赛马娘", nikke: "胜利女神：妮姬",
+    princess_connect: "公主连结", "プリンセスコネクト！": "公主连结",
+    kemono_friends: "兽娘动物园", love_live: "Love Live!", "ラブライブ！": "Love Live!",
+    original: "原创", fanart: "同人作品", artist: "画师", copyright: "作品", character: "角色",
+    "1girl": "单人女性角色", "2girls": "两名女性角色", "1boy": "单人男性角色", solo: "单人画面",
+    long_hair: "长发", short_hair: "短发", black_hair: "黑发", white_hair: "白发",
+    blue_hair: "蓝发", pink_hair: "粉发", blonde_hair: "金发", red_hair: "红发",
+    school_uniform: "校服", sailor_uniform: "水手服", cat_ears: "猫耳", animal_ears: "兽耳",
+    blue_eyes: "蓝眼", red_eyes: "红眼", green_eyes: "绿眼", smile: "微笑", blush: "脸红",
+    "制服": "制服", "猫耳": "猫耳", "白髪": "白发", "黒髪": "黑发", "青髪": "蓝发",
+    "赤髪": "红发", "金髪": "金发", "銀髪": "银发", "長髪": "长发", "短髪": "短发",
+    "青い目": "蓝眼", "赤い目": "红眼", "女の子": "女孩", "男の子": "男孩",
+    "制服姿": "穿制服", "水着": "泳装", "メイド": "女仆", "ツインテール": "双马尾",
+    "ポニーテール": "马尾", "眼鏡": "眼镜", "笑顔": "笑容", "桜": "樱花",
+    "花": "花", "海": "海", "空": "天空", "夜": "夜景", "星空": "星空"
+  };
   const selectedTagsStorageKey = "waifu-gallery-selected-tags-v1";
   const blockedTagsStorageKey = "waifu-gallery-blocked-tags-v1";
   function readStoredTagList(key) {
     try {
       const value = JSON.parse(localStorage.getItem(key) || "[]");
       if (!Array.isArray(value)) return [];
-      return [...new Set(value.filter((tag) => typeof tag === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(tag)))];
+      return [...new Set(value.filter((tag) => typeof tag === "string" && /^[\p{L}\p{N}_-]{1,64}$/u.test(tag)))];
     } catch (_) { return []; }
   }
   function saveTagPreferences() {
@@ -2058,7 +2083,7 @@
   let tagDialogTrigger = null;
   let tagOptionsAnimationTimer = 0;
   function syncSelectedTagsFromInput() {
-    selectedTags = [...new Set((tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter((tag) => /^[a-zA-Z0-9_-]{1,64}$/.test(tag)))];
+    selectedTags = [...new Set((tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter((tag) => /^[\p{L}\p{N}_-]{1,64}$/u.test(tag)))];
   }
   function activeTagList() { return tagSelectionMode === "block" ? blockedTags : selectedTags; }
   function blockingTagsAvailable() { return !sourceSelect || ["auto", "safebooru"].includes(sourceSelect.value); }
@@ -2071,7 +2096,67 @@
       : "选择想看的标签，可多选。筛选和屏蔽设置会在刷新后保留。";
     if (tagClearButton) tagClearButton.textContent = tagSelectionMode === "block" ? "清空屏蔽" : "清空";
   }
-  function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
+  function tagLabel(tag) { return TAG_TRANSLATIONS[tag] || (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
+  function addTagOption(tag, label) {
+    if (!tagOptions || !tag || !/^[\p{L}\p{N}_-]{1,64}$/u.test(tag)) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    const selected = activeTagList().includes(tag);
+    button.className = "gallery-tag-option" + (selected ? " is-selected" : "");
+    button.dataset.tag = tag;
+    button.setAttribute("aria-pressed", String(selected));
+    const mark = document.createElement("span");
+    mark.className = "gallery-tag-option-mark";
+    mark.textContent = selected ? "✓" : "+";
+    const text = document.createElement("span");
+    text.textContent = label || tagLabel(tag);
+    const raw = document.createElement("small");
+    raw.className = "gallery-tag-option-raw";
+    raw.textContent = tag;
+    button.append(mark, text, raw);
+    button.addEventListener("click", () => {
+      if (activeTagList().includes(tag)) {
+        if (tagSelectionMode === "block") blockedTags = blockedTags.filter((item) => item !== tag);
+        else selectedTags = selectedTags.filter((item) => item !== tag);
+      } else if (tagSelectionMode === "block") {
+        blockedTags.push(tag); selectedTags = selectedTags.filter((item) => item !== tag);
+      } else {
+        selectedTags.push(tag); blockedTags = blockedTags.filter((item) => item !== tag);
+      }
+      syncTagOptionStates(); renderSelectedTags(); updateTagDialogHint();
+    });
+    tagOptions.append(button);
+  }
+  let tagSearchRequest = 0;
+  let tagSearchDebounce = 0;
+  async function searchRemoteTags(query) {
+    const requestId = ++tagSearchRequest;
+    if (!tagOptions || !tagSearchStatus) return;
+    if (query.length < 2) {
+      tagSearchStatus.textContent = "输入至少 2 个字符，实时查询 Safebooru 标签库。";
+      renderTagOptions();
+      return;
+    }
+    tagOptions.replaceChildren();
+    tagSearchStatus.textContent = "正在查询完整标签库…";
+    try {
+      const response = await fetch(galleryApiUrl("?mode=tags&q=" + encodeURIComponent(query)));
+      const data = await response.json();
+      if (requestId !== tagSearchRequest) return;
+      if (!response.ok || !Array.isArray(data.tags)) throw new Error(data.error || "标签查询失败");
+      tagOptions.replaceChildren();
+      data.tags.forEach((item) => {
+        const raw = typeof item.name === "string" ? item.name : "";
+        if (raw) addTagOption(raw, tagLabel(raw));
+      });
+      tagSearchStatus.textContent = data.tags.length
+        ? "找到 " + data.tags.length + " 个匹配标签。已收录的常见作品、角色和日文标签会显示中文；未收录标签保留原名，确保可准确筛选。"
+        : "没有找到匹配标签。可以尝试英文、下划线写法或日文原名。";
+    } catch (error) {
+      if (requestId !== tagSearchRequest) return;
+      tagSearchStatus.textContent = "标签库暂时无法访问：" + (error.message || "请稍后重试");
+    }
+  }
   // Reconcile selected chips in place. Replacing every child on each click
   // restarted CSS animations on all chips and caused the selected area to flash.
   function renderSelectedTags() {
@@ -2140,37 +2225,11 @@
       tagOptionsAnimationTimer = 0;
     }
     tagOptions.replaceChildren();
-    (TAG_CATEGORIES[activeTagCategory] || []).forEach(([tag, label]) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      const selected = activeTagList().includes(tag);
-      button.className = "gallery-tag-option" + (selected ? " is-selected" : "");
-      button.dataset.tag = tag;
-      button.setAttribute("aria-pressed", String(selected));
-      const mark = document.createElement("span");
-      mark.className = "gallery-tag-option-mark";
-      mark.textContent = selected ? "✓" : "+";
-      const text = document.createElement("span");
-      text.textContent = label;
-      button.append(mark, text);
-      button.addEventListener("click", () => {
-        const list = activeTagList();
-        if (list.includes(tag)) {
-          if (tagSelectionMode === "block") blockedTags = blockedTags.filter((item) => item !== tag);
-          else selectedTags = selectedTags.filter((item) => item !== tag);
-        } else if (tagSelectionMode === "block") {
-          blockedTags.push(tag);
-          selectedTags = selectedTags.filter((item) => item !== tag);
-        } else {
-          selectedTags.push(tag);
-          blockedTags = blockedTags.filter((item) => item !== tag);
-        }
-        syncTagOptionStates();
-        renderSelectedTags();
-        updateTagDialogHint();
-      });
-      tagOptions.append(button);
-    });
+    if (tagSearchInput && tagSearchInput.value.trim().length >= 2) {
+      searchRemoteTags(tagSearchInput.value.trim());
+      return;
+    }
+    (TAG_CATEGORIES[activeTagCategory] || []).forEach(([tag, label]) => addTagOption(tag, label));
     if (animate && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       void tagOptions.offsetWidth;
       tagOptions.classList.add("tag-options-enter");
@@ -2210,6 +2269,11 @@
       tagDialogTrigger = null;
     });
   }
+  if (tagSearchInput) tagSearchInput.addEventListener("input", () => {
+    window.clearTimeout(tagSearchDebounce);
+    const query = tagSearchInput.value.trim();
+    tagSearchDebounce = window.setTimeout(() => searchRemoteTags(query), 280);
+  });
   if (tagDialogOpen) tagDialogOpen.addEventListener("click", openTagDialog);
   if (tagSettingsOpen) tagSettingsOpen.addEventListener("click", openTagDialog);
   if (tagDialog) {
