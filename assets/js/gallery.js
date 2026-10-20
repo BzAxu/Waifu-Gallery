@@ -40,6 +40,19 @@
   const sidebarFavoriteCount = document.getElementById("gallerySidebarFavoriteCount");
   const showFavoriteButtonCheckbox = document.getElementById("galleryShowFavoriteButton");
   const favoriteDownloadAllButton = document.getElementById("galleryFavoritesDownloadAll");
+  const downloadManager = document.getElementById("galleryDownloadManager");
+  const downloadManagerQueue = document.getElementById("galleryDownloadManagerQueue");
+  const downloadManagerFiles = document.getElementById("galleryDownloadManagerFiles");
+  const downloadManagerSummary = document.getElementById("galleryDownloadManagerSummary");
+  const downloadFetchLabel = document.getElementById("galleryDownloadFetchLabel");
+  const downloadFetchProgress = document.getElementById("galleryDownloadFetchProgress");
+  const downloadBytesLabel = document.getElementById("galleryDownloadBytesLabel");
+  const downloadZipLabel = document.getElementById("galleryDownloadZipLabel");
+  const downloadZipProgress = document.getElementById("galleryDownloadZipProgress");
+  const downloadQueueCount = document.getElementById("galleryDownloadQueueCount");
+  const downloadFileCount = document.getElementById("galleryDownloadFileCount");
+  const downloadManagerCancel = document.getElementById("galleryDownloadManagerCancel");
+  const downloadManagerClose = document.getElementById("galleryDownloadManagerClose");
   const favoriteMultiSelectButton = document.getElementById("galleryFavoritesMultiSelect");
   const favoriteDownloadSelectedButton = document.getElementById("galleryFavoritesDownloadSelected");
   const favoriteClearSelectedButton = document.getElementById("galleryFavoritesClearSelected");
@@ -355,7 +368,7 @@
     if (!dialog) return;
     const previousCleanup = dialogCloseCleanup.get(dialog);
     if (previousCleanup) previousCleanup();
-    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card, .gallery-favorites-modal-card");
+    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card, .gallery-favorites-modal-card, .gallery-download-manager-card");
     dialog.hidden = false;
     dialog.classList.remove("is-opening", "is-closing");
     document.body.classList.add(bodyClass);
@@ -423,9 +436,9 @@
   const sidebarFavoritesButton = document.getElementById("gallerySidebarFavorites");
   const sidebarSettingsButton = document.getElementById("gallerySidebarSettings");
 
-  // Modal priority: image preview > tag picker > settings > favorites.
+  // Modal priority: image preview > tag picker > settings > download manager > favorites.
   function getTopmostOpenDialog() {
-    return [lightbox, tagDialog, settingsDialog, favoritesDialog].find((dialog) =>
+    return [lightbox, tagDialog, settingsDialog, downloadManager, favoritesDialog].find((dialog) =>
       dialog && !dialog.hidden && !dialog.classList.contains("is-closing")
     ) || null;
   }
@@ -435,7 +448,7 @@
         !element.hidden &&
         !element.closest("[hidden], [inert]") &&
         !element.classList.contains("gallery-native-select") &&
-        !element.matches(".gallery-tag-backdrop, .gallery-settings-backdrop, .gallery-lightbox-backdrop") &&
+        !element.matches(".gallery-tag-backdrop, .gallery-settings-backdrop, .gallery-lightbox-backdrop, .gallery-download-manager-backdrop") &&
         element.getClientRects().length > 0 &&
         window.getComputedStyle(element).visibility !== "hidden"
       );
@@ -577,6 +590,36 @@
         closeFavoritesDialog();
       } else {
         trapDialogTab(event, favoritesDialog);
+      }
+    });
+  }
+
+  let downloadManagerTrigger = null;
+  function openDownloadManager() {
+    if (!downloadManager) return;
+    downloadManagerTrigger = document.activeElement;
+    openAnimatedDialog(downloadManager, "gallery-download-manager-open");
+    if (downloadManagerClose) downloadManagerClose.focus({ preventScroll: true });
+  }
+  function closeDownloadManager() {
+    if (!downloadManager || downloadManager.hidden) return;
+    closeAnimatedDialog(downloadManager, "gallery-download-manager-open", () => {
+      if (downloadManagerTrigger && typeof downloadManagerTrigger.focus === "function") {
+        downloadManagerTrigger.focus({ preventScroll: true });
+      }
+      downloadManagerTrigger = null;
+    });
+  }
+  if (downloadManager) {
+    downloadManager.querySelectorAll("[data-download-manager-close]").forEach((button) =>
+      button.addEventListener("click", closeDownloadManager));
+    document.addEventListener("keydown", (event) => {
+      if (downloadManager.hidden || getTopmostOpenDialog() !== downloadManager) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDownloadManager();
+      } else {
+        trapDialogTab(event, downloadManager);
       }
     });
   }
@@ -966,28 +1009,260 @@
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
   }
 
-  async function runFavoriteDownloads(urls) {
-    if (!urls.length || downloadingFavorites) return;
-    downloadingFavorites = true;
-    syncFavoriteToolbar();
-    let succeeded = 0;
-    let failed = 0;
-    for (let index = 0; index < urls.length; index++) {
-      if (favoritesCount) favoritesCount.textContent = `正在下载 ${index + 1} / ${urls.length}…`;
-      try {
-        await downloadFavoriteImage(urls[index], index + 1);
-        succeeded++;
-      } catch (error) {
-        console.warn("Favorite image download failed:", error);
-        failed++;
-      }
-      if (index < urls.length - 1) await new Promise((resolve) => window.setTimeout(resolve, 180));
+  const FAVORITE_ZIP_BATCH_SIZE = 100;
+  let favoriteDownloadController = null;
+  let favoriteDownloadCancelled = false;
+  let jsZipPromise = null;
+
+  function loadJSZip() {
+    if (window.JSZip) return Promise.resolve(window.JSZip);
+    if (jsZipPromise) return jsZipPromise;
+    jsZipPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+      script.async = true;
+      script.crossOrigin = "anonymous";
+      script.onload = () => window.JSZip ? resolve(window.JSZip) : reject(new Error("ZIP 库加载失败"));
+      script.onerror = () => {
+        jsZipPromise = null;
+        reject(new Error("无法加载 ZIP 组件，请检查网络后重试"));
+      };
+      document.head.append(script);
+    });
+    return jsZipPromise;
+  }
+
+  function setDownloadProgress(fetchDone, fetchTotal, currentBytes = 0, currentTotal = 0, zipPercent = 0) {
+    const ratio = fetchTotal ? Math.min(100, Math.round(fetchDone / fetchTotal * 100)) : 0;
+    if (downloadFetchLabel) downloadFetchLabel.textContent = `${fetchDone} / ${fetchTotal} 张`;
+    if (downloadFetchProgress) downloadFetchProgress.style.width = ratio + "%";
+    if (downloadBytesLabel) {
+      downloadBytesLabel.textContent = currentTotal > 0
+        ? `当前图片 ${formatDownloadBytes(currentBytes)} / ${formatDownloadBytes(currentTotal)}`
+        : currentBytes > 0 ? `当前图片已接收 ${formatDownloadBytes(currentBytes)}` : "等待下载数据";
     }
-    downloadingFavorites = false;
+    if (downloadZipLabel) downloadZipLabel.textContent = `ZIP ${Math.round(zipPercent)}%`;
+    if (downloadZipProgress) downloadZipProgress.style.width = Math.max(0, Math.min(100, zipPercent)) + "%";
+  }
+
+  function formatDownloadBytes(value) {
+    if (!Number.isFinite(value) || value < 0) return "—";
+    if (value < 1024) return value + " B";
+    if (value < 1024 * 1024) return (value / 1024).toFixed(1) + " KB";
+    return (value / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  function extensionForBlob(blob) {
+    const type = (blob.type || "").toLowerCase();
+    return type.includes("png") ? "png" : type.includes("webp") ? "webp" :
+      type.includes("gif") ? "gif" : type.includes("avif") ? "avif" : type.includes("jpeg") ? "jpg" : "jpg";
+  }
+
+  function renderDownloadQueue(tasks) {
+    if (!downloadManagerQueue) return;
+    downloadManagerQueue.replaceChildren();
+    tasks.forEach((task) => {
+      const row = document.createElement("div");
+      row.className = "gallery-download-queue-item";
+      row.dataset.taskIndex = String(task.index);
+      const title = document.createElement("strong");
+      title.textContent = task.filename;
+      const detail = document.createElement("span");
+      detail.textContent = `${task.urls.length} 张图片 · 等待中`;
+      detail.dataset.taskStatus = "true";
+      row.append(title, detail);
+      downloadManagerQueue.append(row);
+      task.element = row;
+      task.statusElement = detail;
+    });
+    if (downloadQueueCount) downloadQueueCount.textContent = `${tasks.length} 个 ZIP`;
+  }
+
+  function setDownloadTaskStatus(task, status) {
+    if (task.statusElement) task.statusElement.textContent = `${task.urls.length} 张图片 · ${status}`;
+    if (task.element) {
+      task.element.classList.toggle("is-active", status === "正在处理");
+      task.element.classList.toggle("is-complete", status === "已下载");
+      task.element.classList.toggle("is-failed", status.startsWith("失败"));
+      task.element.classList.toggle("is-cancelled", status === "已取消");
+    }
+  }
+
+  function renderDownloadFiles(urls) {
+    if (!downloadManagerFiles) return [];
+    downloadManagerFiles.replaceChildren();
+    const rows = urls.map((url, index) => {
+      const row = document.createElement("div");
+      row.className = "gallery-download-file-item";
+      const name = document.createElement("span");
+      name.textContent = `图片 ${String(index + 1).padStart(3, "0")}`;
+      const state = document.createElement("span");
+      state.textContent = "等待中";
+      state.className = "gallery-download-file-status";
+      row.append(name, state);
+      downloadManagerFiles.append(row);
+      return { row, state, url, index };
+    });
+    if (downloadFileCount) downloadFileCount.textContent = `${urls.length} 张`;
+    return rows;
+  }
+
+  async function readImageResponse(response, signal, onProgress) {
+    const total = Number(response.headers.get("content-length")) || 0;
+    if (!response.body || !response.body.getReader) {
+      const blob = await response.blob();
+      onProgress(blob.size, total || blob.size);
+      return blob;
+    }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let received = 0;
+    try {
+      while (true) {
+        if (signal.aborted) throw new DOMException("下载已取消", "AbortError");
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.byteLength;
+        onProgress(received, total);
+      }
+    } catch (error) {
+      try { await reader.cancel(); } catch (_) {}
+      throw error;
+    }
+    const contentType = response.headers.get("content-type") || "application/octet-stream";
+    return new Blob(chunks, { type: contentType });
+  }
+
+  async function runFavoriteDownloads(urls) {
+    if (!urls.length || downloadingFavorites || !downloadManager) return;
+    const tasks = [];
+    for (let start = 0; start < urls.length; start += FAVORITE_ZIP_BATCH_SIZE) {
+      const chunk = urls.slice(start, start + FAVORITE_ZIP_BATCH_SIZE);
+      const taskNumber = tasks.length + 1;
+      tasks.push({
+        index: taskNumber,
+        urls: chunk,
+        filename: `BzAxu-favorites-${String(taskNumber).padStart(2, "0")}.zip`,
+        status: "等待中"
+      });
+    }
+
+    downloadingFavorites = true;
+    favoriteDownloadCancelled = false;
+    favoriteDownloadController = new AbortController();
     syncFavoriteToolbar();
-    const summary = `下载任务结束：已触发 ${succeeded} 张，失败 ${failed} 张`;
-    if (favoritesCount) favoritesCount.textContent = summary;
-    showToast(summary);
+    openDownloadManager();
+    renderDownloadQueue(tasks);
+    if (downloadManagerSummary) downloadManagerSummary.textContent = `已加入 ${urls.length} 张图片，分为 ${tasks.length} 个 ZIP 任务。`;
+    if (downloadManagerCancel) downloadManagerCancel.disabled = false;
+    let completedImages = 0;
+    let failedImages = 0;
+    let completedTasks = 0;
+
+    try {
+      const JSZip = await loadJSZip();
+      for (const task of tasks) {
+        if (favoriteDownloadCancelled) break;
+        setDownloadTaskStatus(task, "正在处理");
+        const zip = new JSZip();
+        const fileRows = renderDownloadFiles(task.urls);
+        let taskFailed = 0;
+        for (let i = 0; i < task.urls.length; i++) {
+          if (favoriteDownloadCancelled) break;
+          const file = fileRows[i];
+          try {
+            file.state.textContent = "下载中";
+            const response = await fetch(galleryApiUrl("?mode=download&url=" + encodeURIComponent(file.url)), {
+              cache: "no-store",
+              signal: favoriteDownloadController.signal
+            });
+            if (!response.ok) throw new Error("HTTP " + response.status);
+            const blob = await readImageResponse(response, favoriteDownloadController.signal, (received, total) => {
+              setDownloadProgress(completedImages, urls.length, received, total, 0);
+              file.state.textContent = total > 0
+                ? `下载中 · ${Math.min(100, Math.round(received / total * 100))}%`
+                : `接收中 · ${formatDownloadBytes(received)}`;
+            });
+            const name = `image-${String(task.index * FAVORITE_ZIP_BATCH_SIZE - FAVORITE_ZIP_BATCH_SIZE + i + 1).padStart(4, "0")}.${extensionForBlob(blob)}`;
+            zip.file(name, blob);
+            completedImages++;
+            file.state.textContent = "已加入 ZIP";
+          } catch (error) {
+            if (error.name === "AbortError" || favoriteDownloadCancelled) {
+              file.state.textContent = "已取消";
+              break;
+            }
+            console.warn("Favorite ZIP item failed:", error);
+            taskFailed++;
+            failedImages++;
+            file.state.textContent = "下载失败";
+          }
+          setDownloadProgress(completedImages, urls.length, 0, 0, 0);
+          if (favoritesCount) favoritesCount.textContent = `ZIP 下载中：${completedImages} / ${urls.length} 张`;
+        }
+        if (favoriteDownloadCancelled) {
+          setDownloadTaskStatus(task, "已取消");
+          break;
+        }
+        if (Object.keys(zip.files).length === 0) {
+          setDownloadTaskStatus(task, "失败 · 没有可打包的图片");
+          continue;
+        }
+        if (downloadManagerSummary) downloadManagerSummary.textContent = `第 ${task.index} / ${tasks.length} 个 ZIP 正在打包…`;
+        try {
+          const blob = await zip.generateAsync({ type: "blob", compression: "STORE" }, (metadata) => {
+            setDownloadProgress(completedImages, urls.length, 0, 0, metadata.percent || 0);
+            if (downloadManagerSummary) downloadManagerSummary.textContent =
+              `第 ${task.index} / ${tasks.length} 个 ZIP 打包中 · ${Math.round(metadata.percent || 0)}%`;
+          });
+          if (favoriteDownloadCancelled) {
+            setDownloadTaskStatus(task, "已取消");
+            break;
+          }
+          const objectUrl = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = objectUrl;
+          link.download = task.filename;
+          document.body.append(link);
+          link.click();
+          link.remove();
+          window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+          completedTasks++;
+          setDownloadTaskStatus(task, taskFailed ? `已下载 · ${taskFailed} 张失败` : "已下载");
+        } catch (error) {
+          console.error("ZIP generation failed:", error);
+          setDownloadTaskStatus(task, "失败 · ZIP 生成失败");
+          failedImages += Math.max(0, task.urls.length - completedImages);
+        }
+      }
+    } catch (error) {
+      console.error("Unable to initialize ZIP download:", error);
+      if (downloadManagerSummary) downloadManagerSummary.textContent = error.message || "ZIP 初始化失败";
+      showToast(error.message || "ZIP 组件加载失败");
+    } finally {
+      downloadingFavorites = false;
+      favoriteDownloadController = null;
+      syncFavoriteToolbar();
+      if (downloadManagerCancel) downloadManagerCancel.disabled = true;
+      const summary = favoriteDownloadCancelled
+        ? `已取消：已生成 ${completedTasks} 个 ZIP，失败 ${failedImages} 张`
+        : `任务结束：生成 ${completedTasks} 个 ZIP，下载失败 ${failedImages} 张`;
+      if (downloadManagerSummary) downloadManagerSummary.textContent = summary;
+      if (favoritesCount) favoritesCount.textContent = summary;
+      if (downloadManagerCancel) downloadManagerCancel.textContent = "已结束";
+      showToast(summary);
+    }
+  }
+
+  if (downloadManagerCancel) {
+    downloadManagerCancel.addEventListener("click", () => {
+      if (!downloadingFavorites || !favoriteDownloadController) return;
+      favoriteDownloadCancelled = true;
+      favoriteDownloadController.abort();
+      downloadManagerCancel.disabled = true;
+      if (downloadManagerSummary) downloadManagerSummary.textContent = "正在取消当前任务…";
+    });
   }
 
   function openGalleryLightbox(url, title, trigger, source = "gallery") {
