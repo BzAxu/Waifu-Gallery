@@ -999,15 +999,16 @@
   }
 
   function renderRoute(route, { updateHistory = false, replace = false } = {}) {
+    const previousRoute = currentRoute;
     const nextRoute = route === "gallery" || route === "favorites" ? route : "home";
-    if (currentRoute === "favorites" && nextRoute !== "favorites") {
+    if (previousRoute === "favorites" && nextRoute !== "favorites") {
       // Keep a completed list cached when simply returning to the gallery.
       // Only rebuild if leaving cancels an unfinished batch render.
       if (favoritesRenderFrame) favoritesRenderDirty = true;
       cancelFavoriteRender();
     }
     currentRoute = nextRoute;
-    transition(() => {
+    const updateRoute = () => {
       const pageActive = currentRoute !== "home";
       document.body.classList.toggle("gallery-view-active", pageActive);
       homePage.hidden = pageActive;
@@ -1023,7 +1024,14 @@
         else url.searchParams.set("page", currentRoute);
         history[replace ? "replaceState" : "pushState"]({ view: currentRoute }, "", url);
       }
-    });
+    };
+
+    // The native View Transition API snapshots the full rendered page. Avoid
+    // that expensive snapshot for the favorites route, where a gallery full of
+    // image cards and glass effects may be present. Existing CSS view-in
+    // animations remain active, and other route transitions are unchanged.
+    if (previousRoute === "favorites" || nextRoute === "favorites") updateRoute();
+    else transition(updateRoute);
     if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 100 });
     if (currentRoute === "favorites") renderFavorites();
     if (currentRoute !== "home") checkProviderStatus();
