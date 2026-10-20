@@ -2051,3 +2051,107 @@ body.gallery-sidebar-open{ overflow:hidden; }
 @media (prefers-reduced-motion:reduce){
   .gallery-favorites-view, .gallery-favorite-card, .gallery-favorite-toggle{ animation:none!important; transition-duration:.01ms!important; }
 }
+
+
+/* Favorite controls scale with masonry density: two columns preserve the current size. */
+#galleryGrid[data-columns="3"] .gallery-favorite-toggle {
+  width:32px!important;
+  height:32px!important;
+  min-width:32px!important;
+  min-height:32px!important;
+  padding:6px!important;
+  right:7px!important;
+  bottom:7px!important;
+  border-radius:11px!important;
+}
+#galleryGrid[data-columns="3"] .gallery-favorite-toggle svg {
+  width:17px;
+  height:17px;
+}
+#galleryGrid[data-columns="4"] .gallery-favorite-toggle,
+#galleryGrid[data-columns="5"] .gallery-favorite-toggle {
+  width:28px!important;
+  height:28px!important;
+  min-width:28px!important;
+  min-height:28px!important;
+  padding:5px!important;
+  right:6px!important;
+  bottom:6px!important;
+  border-radius:9px!important;
+}
+#galleryGrid[data-columns="4"] .gallery-favorite-toggle svg,
+#galleryGrid[data-columns="5"] .gallery-favorite-toggle svg {
+  width:15px;
+  height:15px;
+}
+
+/* Switch the thumbnail favorite controls with a deliberate, staggered spring animation. */
+#galleryGrid .gallery-favorite-toggle.is-showing {
+  animation: galleryFavoriteButtonIn 620ms cubic-bezier(.16,1,.3,1) var(--favorite-visibility-delay, 0ms) both!important;
+  transform-origin: 70% 75%;
+}
+#galleryGrid .gallery-favorite-toggle.is-hiding {
+  animation: galleryFavoriteButtonOut 390ms cubic-bezier(.55,0,.8,.35) var(--favorite-visibility-delay, 0ms) both!important;
+  transform-origin: 70% 75%;
+  pointer-events:none!important;
+}
+@keyframes galleryFavoriteButtonIn {
+  0% { opacity:0; transform:translateY(12px) scale(.28) rotate(-24deg); filter:blur(5px) saturate(.6); }
+  48% { opacity:1; transform:translateY(-2px) scale(1.18) rotate(7deg); filter:blur(0) saturate(1.3); }
+  70% { opacity:1; transform:translateY(1px) scale(.93) rotate(-3deg); }
+  86% { transform:translateY(0) scale(1.05) rotate(1deg); }
+  100% { opacity:1; transform:translateY(0) scale(1) rotate(0); filter:blur(0) saturate(1); }
+}
+@keyframes galleryFavoriteButtonOut {
+  0% { opacity:1; transform:translateY(0) scale(1) rotate(0); filter:blur(0); }
+  28% { opacity:1; transform:translateY(-3px) scale(1.12) rotate(-8deg); }
+  100% { opacity:0; transform:translateY(10px) scale(.18) rotate(25deg); filter:blur(5px); }
+}
+
+/* A large red heart briefly blooms at the artwork center after adding a favorite. */
+#galleryGrid .gallery-heart-feedback {
+  position:absolute;
+  z-index:8;
+  left:50%;
+  top:50%;
+  display:grid;
+  place-items:center;
+  width:clamp(44px, 34%, 86px);
+  aspect-ratio:1;
+  color:#ff315d;
+  opacity:0;
+  pointer-events:none;
+  transform:translate(-50%,-50%) scale(.18) rotate(-18deg);
+  filter:drop-shadow(0 3px 8px rgba(255,25,76,.45)) drop-shadow(0 0 22px rgba(255,40,94,.55));
+}
+#galleryGrid .gallery-heart-feedback svg {
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+  fill:currentColor;
+  stroke:rgba(255,245,249,.85);
+  stroke-width:.55;
+}
+#galleryGrid .gallery-heart-feedback.is-animating {
+  animation:galleryCenterHeartBloom 980ms cubic-bezier(.16,1,.3,1) both!important;
+}
+#galleryGrid .gallery-heart-feedback.is-static-visible {
+  opacity:.96;
+  transform:translate(-50%,-50%) scale(1);
+}
+@keyframes galleryCenterHeartBloom {
+  0% { opacity:0; transform:translate(-50%,-50%) scale(.12) rotate(-22deg); }
+  18% { opacity:1; transform:translate(-50%,-50%) scale(1.2) rotate(8deg); }
+  33% { opacity:1; transform:translate(-50%,-50%) scale(.9) rotate(-4deg); }
+  48% { opacity:1; transform:translate(-50%,-50%) scale(1.06) rotate(2deg); }
+  68% { opacity:.96; transform:translate(-50%,-56%) scale(1) rotate(0); }
+  100% { opacity:0; transform:translate(-50%,-72%) scale(1.55) rotate(9deg); }
+}
+@media (prefers-reduced-motion:reduce) {
+  #galleryGrid .gallery-favorite-toggle.is-showing,
+  #galleryGrid .gallery-favorite-toggle.is-hiding,
+  #galleryGrid .gallery-heart-feedback.is-animating {
+    animation:none!important;
+  }
+}
