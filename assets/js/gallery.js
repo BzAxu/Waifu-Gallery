@@ -20,6 +20,10 @@
   const tagSettingsOpen = document.getElementById("galleryTagSettingsOpen");
   const tagOptions = document.getElementById("galleryTagOptions");
   const tagSelected = document.getElementById("galleryTagSelected");
+  const tagSelectedTitle = document.getElementById("galleryTagSelectedTitle");
+  const tagModeTabs = document.getElementById("galleryTagModeTabs");
+  const tagIncludeCount = document.getElementById("galleryTagIncludeCount");
+  const tagExcludeCount = document.getElementById("galleryTagExcludeCount");
   const tagCategoryTabs = document.getElementById("galleryTagCategoryTabs");
   const tagClearButton = document.getElementById("galleryTagClear");
   const tagConfirmButton = document.getElementById("galleryTagConfirm");
@@ -1835,6 +1839,8 @@
         const params = new URLSearchParams({ source, count: String(requestedCount) });
         const requestedTags = tagInput && tagFilteringAvailable() ? tagInput.value.trim() : "";
         if (requestedTags) params.set("tags", requestedTags);
+        const requestedBlockedTags = blockedTags.join(",");
+        if (requestedBlockedTags) params.set("without_tags", requestedBlockedTags);
         const response = await fetch(galleryApiUrl("?" + params.toString()), {
           method: "GET",
           headers: { "Accept": "application/json" },
@@ -2030,32 +2036,60 @@
     ]
   };
   let activeTagCategory = "hair";
+  const tagFilterStorageKey = "waifu-gallery-tag-filters-v1";
   let selectedTags = [];
+  let blockedTags = [];
+  let activeTagMode = "include";
+  try {
+    const savedFilters = JSON.parse(localStorage.getItem(tagFilterStorageKey) || "{}");
+    const validTags = (value) => Array.isArray(value) ? [...new Set(value.filter((tag) => typeof tag === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(tag)))] : [];
+    selectedTags = validTags(savedFilters.include);
+    blockedTags = validTags(savedFilters.exclude);
+    if (tagInput) tagInput.value = selectedTags.join(",");
+  } catch (_) {}
   let tagDialogTrigger = null;
   let tagOptionsAnimationTimer = 0;
   function syncSelectedTagsFromInput() {
-    selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean);
+    selectedTags = [...new Set((tagInput && tagInput.value ? tagInput.value.split(/[\\s,]+/) : []).map((tag) => tag.trim()).filter((tag) => /^[a-zA-Z0-9_-]{1,64}$/.test(tag)))];
+  }
+  function activeTagList() { return activeTagMode === "exclude" ? blockedTags : selectedTags; }
+  function saveTagFilters() {
+    try { localStorage.setItem(tagFilterStorageKey, JSON.stringify({ include: selectedTags, exclude: blockedTags })); return true; }
+    catch (_) { return false; }
+  }
+  function syncTagModeUI() {
+    if (tagModeTabs) tagModeTabs.querySelectorAll("[data-tag-mode]").forEach((button) => {
+      const active = button.dataset.tagMode === activeTagMode;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    if (tagSelectedTitle) tagSelectedTitle.textContent = activeTagMode === "exclude" ? "屏蔽标签" : "包含标签";
+    if (tagIncludeCount) tagIncludeCount.textContent = String(selectedTags.length);
+    if (tagExcludeCount) tagExcludeCount.textContent = String(blockedTags.length);
+    if (tagClearButton) tagClearButton.textContent = activeTagMode === "exclude" ? "清空屏蔽" : "清空包含";
   }
   function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
   // Reconcile selected chips in place. Replacing every child on each click
   // restarted CSS animations on all chips and caused the selected area to flash.
   function renderSelectedTags() {
     if (!tagSelected) return;
-    const active = new Set(selectedTags);
+    const currentTags = activeTagList();
+    const active = new Set(currentTags);
+    syncTagModeUI();
     tagSelected.querySelectorAll(".gallery-tag-selected-chip").forEach((chip) => {
       if (!active.has(chip.dataset.tag)) chip.remove();
     });
     let emptyTag = tagSelected.querySelector(".gallery-tag-none");
-    if (!selectedTags.length) {
+    if (!currentTags.length) {
       if (!emptyTag) {
         emptyTag = document.createElement("span");
         emptyTag.className = "gallery-tag-none";
-        emptyTag.textContent = "还没有选择标签";
+        emptyTag.textContent = activeTagMode === "exclude" ? "还没有屏蔽标签" : "还没有包含标签";
         tagSelected.append(emptyTag);
       }
     } else {
       emptyTag?.remove();
-      selectedTags.forEach((tag) => {
+      currentTags.forEach((tag) => {
         if (tagSelected.querySelector('[data-tag="' + CSS.escape(tag) + '"].gallery-tag-selected-chip')) return;
         const chip = document.createElement("span");
         chip.className = "gallery-tag-selected-chip";
@@ -2067,7 +2101,8 @@
         remove.textContent = "×";
         remove.setAttribute("aria-label", "移除 " + name.textContent);
         remove.addEventListener("click", () => {
-          selectedTags = selectedTags.filter((item) => item !== tag);
+          if (activeTagMode === "exclude") blockedTags = blockedTags.filter((item) => item !== tag);
+          else selectedTags = selectedTags.filter((item) => item !== tag);
           syncTagOptionStates();
           renderSelectedTags();
           updateTagDialogHint();
@@ -2076,14 +2111,15 @@
         tagSelected.append(chip);
       });
     }
-    if (tagConfirmButton) tagConfirmButton.textContent = selectedTags.length ? "应用筛选（" + selectedTags.length + "）" : "清除筛选";
-    tagSelected.dataset.count = String(selectedTags.length);
+    const totalTags = selectedTags.length + blockedTags.length;
+    if (tagConfirmButton) tagConfirmButton.textContent = totalTags ? `应用设置（包含 ${selectedTags.length} · 屏蔽 ${blockedTags.length}）` : "清除筛选";
+    tagSelected.dataset.count = String(currentTags.length);
   }
 
   function syncTagOptionStates() {
     if (!tagOptions) return;
     tagOptions.querySelectorAll(".gallery-tag-option").forEach((button) => {
-      const selected = selectedTags.includes(button.dataset.tag);
+      const selected = activeTagList().includes(button.dataset.tag);
       button.classList.toggle("is-selected", selected);
       button.setAttribute("aria-pressed", String(selected));
       const mark = button.querySelector(".gallery-tag-option-mark");
@@ -2105,18 +2141,20 @@
     (TAG_CATEGORIES[activeTagCategory] || []).forEach(([tag, label]) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "gallery-tag-option" + (selectedTags.includes(tag) ? " is-selected" : "");
+      button.className = "gallery-tag-option" + (activeTagList().includes(tag) ? " is-selected" : "");
       button.dataset.tag = tag;
-      button.setAttribute("aria-pressed", String(selectedTags.includes(tag)));
+      button.setAttribute("aria-pressed", String(activeTagList().includes(tag)));
       const mark = document.createElement("span");
       mark.className = "gallery-tag-option-mark";
-      mark.textContent = selectedTags.includes(tag) ? "✓" : "+";
+      mark.textContent = activeTagList().includes(tag) ? "✓" : "+";
       const text = document.createElement("span");
       text.textContent = label;
       button.append(mark, text);
       button.addEventListener("click", () => {
-        if (selectedTags.includes(tag)) selectedTags = selectedTags.filter((item) => item !== tag);
-        else selectedTags.push(tag);
+        const currentTags = activeTagList();
+        const index = currentTags.indexOf(tag);
+        if (index >= 0) currentTags.splice(index, 1);
+        else currentTags.push(tag);
         syncTagOptionStates();
         renderSelectedTags();
         updateTagDialogHint();
@@ -2135,11 +2173,15 @@
   }
   function updateTagDialogHint() {
     if (!tagDialogHint) return;
-    tagDialogHint.textContent = !tagFilteringAvailable()
-      ? "当前图片源不支持标签筛选，请在画廊设置中切换到自动模式、Nekos API 或 Safebooru。"
-      : sourceSelect && sourceSelect.value === "safebooru" ? "Safebooru 将使用安全评级（safe）进行筛选。"
-      : sourceSelect && sourceSelect.value === "nekosapi" ? "Nekos API 将使用安全评级（safe）进行筛选。"
-      : "自动模式只会查询支持标签的图片源。标签越多，筛选条件越严格。";
+    tagDialogHint.textContent = blockedTags.length && sourceSelect && !["auto", "safebooru"].includes(sourceSelect.value)
+      ? "当前图片源不支持屏蔽标签。请切换到自动模式或 Safebooru，屏蔽条件才会生效。"
+      : activeTagMode === "exclude"
+        ? "屏蔽标签会排除带有这些标签的图片；支持自动模式与 Safebooru。"
+        : !tagFilteringAvailable()
+          ? "当前图片源不支持标签筛选，请切换到自动模式、Nekos API 或 Safebooru。"
+          : sourceSelect && sourceSelect.value === "safebooru" ? "Safebooru 使用安全评级（safe），并支持包含与屏蔽标签。"
+          : sourceSelect && sourceSelect.value === "nekosapi" ? "Nekos API 支持包含标签；屏蔽标签需切换到自动模式或 Safebooru。"
+          : "自动模式会选择支持当前标签条件的图片源。包含标签越多，筛选条件越严格。";
   }
   function openTagDialog() {
     if (!tagDialog) return;
@@ -2169,25 +2211,41 @@
       }
     });
   }
+  if (tagModeTabs) tagModeTabs.querySelectorAll("[data-tag-mode]").forEach((button) => button.addEventListener("click", () => {
+    activeTagMode = button.dataset.tagMode === "exclude" ? "exclude" : "include";
+    syncTagModeUI();
+    renderTagOptions();
+    renderSelectedTags();
+    updateTagDialogHint();
+  }));
   if (tagCategoryTabs) tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((button) => button.addEventListener("click", () => {
     activeTagCategory = button.dataset.tagCategory;
     tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((tab) => { const active = tab === button; tab.classList.toggle("is-active", active); tab.setAttribute("aria-selected", String(active)); });
     renderTagOptions({ animate: true });
   }));
   if (tagClearButton) tagClearButton.addEventListener("click", () => {
-    selectedTags = [];
+    if (activeTagMode === "exclude") blockedTags = [];
+    else selectedTags = [];
     syncTagOptionStates();
     renderSelectedTags();
     updateTagDialogHint();
   });
   if (tagConfirmButton) tagConfirmButton.addEventListener("click", () => {
     if (tagInput) tagInput.value = selectedTags.join(",");
-    if (tagHint) tagHint.textContent = selectedTags.length ? "当前标签：" + selectedTags.map(tagLabel).join("、") : "尚未选择标签。可按类别打开标签选择器。";
+    const saved = saveTagFilters();
+    if (tagHint) tagHint.textContent = [selectedTags.length ? "包含：" + selectedTags.map(tagLabel).join("、") : "", blockedTags.length ? "屏蔽：" + blockedTags.map(tagLabel).join("、") : ""].filter(Boolean).join(" · ") || "未设置标签条件。";
+    if (!saved) showToast("标签已应用，但浏览器不允许保存设置");
     closeTagDialog(); loadImages({ reset: true, targetCount: 100 });
   });
 
   function tagFilteringAvailable() {
     return !sourceSelect || ["auto", "nekosapi", "safebooru"].includes(sourceSelect.value);
+  }
+  function applyManualTagInput() {
+    syncSelectedTagsFromInput();
+    const saved = saveTagFilters();
+    if (!saved) showToast("标签已应用，但浏览器不允许保存设置");
+    loadImages({ reset: true, targetCount: 100 });
   }
   function updateTagFilterAvailability() {
     const available = tagFilteringAvailable();
@@ -2207,11 +2265,11 @@
     updateTagFilterAvailability();
     loadImages({ reset: true, targetCount: 100 });
   });
-  if (tagApplyButton) tagApplyButton.addEventListener("click", () => loadImages({ reset: true, targetCount: 100 }));
+  if (tagApplyButton) tagApplyButton.addEventListener("click", applyManualTagInput);
   if (tagInput) tagInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !tagInput.disabled) {
       event.preventDefault();
-      loadImages({ reset: true, targetCount: 100 });
+      applyManualTagInput();
     }
   });
   updateTagFilterAvailability();
