@@ -64,14 +64,14 @@ const PROVIDERS = [
     headers: { "Accept": "application/json", "User-Agent": "Waifu-Gallery/1.0 (public safe image gallery)" },
     batchSize: 20,
     supportsTags: true,
-    buildUrl: (tags) => {
+    buildUrl: (tags, blockedTags = []) => {
       const target = new URL("https://safebooru.org/index.php");
       target.searchParams.set("page", "dapi");
       target.searchParams.set("s", "post");
       target.searchParams.set("q", "index");
       target.searchParams.set("json", "1");
       // Random ordering prevents every refresh from returning Safebooru's same first page.
-      target.searchParams.set("tags", ["rating:safe", "order:random", ...tags].join(" "));
+      target.searchParams.set("tags", ["rating:safe", "order:random", ...tags, ...blockedTags.map((tag) => "-" + tag)].join(" "));
       target.searchParams.set("limit", "20");
       return target.toString();
     },
@@ -86,12 +86,12 @@ function json(body, status = 200) {
   return Response.json(body, { status, headers: CACHE_HEADERS });
 }
 
-async function requestProvider(provider, tags = []) {
+async function requestProvider(provider, tags = [], blockedTags = []) {
   const started = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const requestUrl = provider.buildUrl ? provider.buildUrl(tags) : provider.url;
+    const requestUrl = provider.buildUrl ? provider.buildUrl(tags, blockedTags) : provider.url;
     const response = await fetch(requestUrl, {
       method: "GET",
       headers: provider.headers,
@@ -128,7 +128,7 @@ async function requestProvider(provider, tags = []) {
   }
 }
 
-async function collectProviderImages(provider, count, tags = []) {
+async function collectProviderImages(provider, count, tags = [], blockedTags = []) {
   const results = [];
   const maxRequests = Math.min(count, provider.batchSize ? 100 : 20);
   // Request in small parallel groups to avoid overwhelming public APIs.
@@ -136,7 +136,7 @@ async function collectProviderImages(provider, count, tags = []) {
   const callsNeeded = Math.ceil(maxRequests / perCall);
   for (let offset = 0; offset < callsNeeded && results.length < maxRequests; offset += 5) {
     const groupSize = Math.min(5, callsNeeded - offset);
-    const group = await Promise.all(Array.from({ length: groupSize }, () => requestProvider(provider, tags)));
+    const group = await Promise.all(Array.from({ length: groupSize }, () => requestProvider(provider, tags, blockedTags)));
     for (const result of group) {
       if (result.ok && Array.isArray(result.files)) results.push(...result.files);
     }
@@ -153,8 +153,14 @@ export async function onRequestGet({ request }) {
   const count = Number.isFinite(requestedCount) ? Math.max(1, Math.min(100, requestedCount)) : 100;
   const rawTags = url.searchParams.getAll("tags").join(",");
   const tags = [...new Set(rawTags.split(/[\s,]+/).map((tag) => tag.trim()).filter(Boolean))];
-  if (tags.some((tag) => !/^[a-zA-Z0-9_-]{1,64}$/.test(tag))) {
+  const rawBlockedTags = url.searchParams.getAll("blockedTags").join(",");
+  const blockedTags = [...new Set(rawBlockedTags.split(/[\s,]+/).map((tag) => tag.trim()).filter(Boolean))];
+  const validTag = (tag) => /^[a-zA-Z0-9_-]{1,64}$/.test(tag);
+  if (tags.some((tag) => !validTag(tag)) || blockedTags.some((tag) => !validTag(tag))) {
     return json({ error: "标签格式无效：标签只能使用字母、数字、下划线或连字符。" }, 400);
+  }
+  if (blockedTags.length && !["auto", "safebooru"].includes(selected)) {
+    return json({ error: "屏蔽标签仅支持自动模式或 Safebooru 图片源。请切换图片源后重试。" }, 400);
   }
 
   if (mode === "download") {
@@ -275,7 +281,9 @@ export async function onRequestGet({ request }) {
     return json({ error: "当前图片源不支持标签筛选。请选择自动模式、Nekos API 或 Safebooru。" }, 400);
   }
   const candidates = selected === "auto"
-    ? [...activeProviders].filter((provider) => !tags.length || provider.supportsTags)
+    ? [...activeProviders].filter((provider) => blockedTags.length
+        ? provider.id === "safebooru"
+        : (!tags.length || provider.supportsTags))
         .sort((a, b) => (b.batchSize || 0) - (a.batchSize || 0))
     : activeProviders.filter((provider) => provider.id === selected);
 
@@ -284,7 +292,7 @@ export async function onRequestGet({ request }) {
   const failures = [];
   for (const provider of candidates) {
     const started = Date.now();
-    const files = await collectProviderImages(provider, count, tags);
+    const files = await collectProviderImages(provider, count, tags, blockedTags);
     if (files.length) {
       return json({
         files,
