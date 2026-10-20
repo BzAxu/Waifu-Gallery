@@ -2276,6 +2276,7 @@ body.gallery-download-manager-open{overflow:hidden}
 .gallery-download-confirm-summary{min-height:22px;margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.7}
 .gallery-download-confirm-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
 .gallery-download-confirm-actions .button{min-height:40px}
+.gallery-download-confirm-cancel{background:rgba(255,255,255,.06)!important;border-color:rgba(255,255,255,.16)!important;color:var(--text)!important}
 .gallery-download-confirm-actions .button:disabled{opacity:.45}
 body.gallery-download-confirm-open{overflow:hidden}
 @media(max-width:480px){.gallery-download-confirm-card{padding:20px 16px;border-radius:18px}.gallery-download-confirm-actions .button{flex:1}}
