@@ -32,6 +32,7 @@
   const lightboxImage = document.getElementById("galleryLightboxImage");
   const lightboxTitle = document.getElementById("galleryLightboxTitle");
   const sourceLink = document.getElementById("galleryPixivLink");
+  const favoritesDialog = document.getElementById("galleryFavoritesDialog");
   const favoritesView = document.getElementById("galleryFavoritesView");
   const favoritesGrid = document.getElementById("galleryFavoritesGrid");
   const favoritesEmpty = document.getElementById("galleryFavoritesEmpty");
@@ -44,6 +45,7 @@
   const favoriteClearSelectedButton = document.getElementById("galleryFavoritesClearSelected");
   const favoriteClearAllButton = document.getElementById("galleryFavoritesClearAll");
   const favoriteBackButton = document.getElementById("galleryFavoritesBack");
+  const favoriteModalCloseButton = document.getElementById("galleryFavoritesModalClose");
   const favoriteEmptyBackButton = document.getElementById("galleryFavoritesEmptyBack");
   const toast = document.getElementById("toast");
   if (!homePage || !galleryPage || !grid) return;
@@ -353,7 +355,7 @@
     if (!dialog) return;
     const previousCleanup = dialogCloseCleanup.get(dialog);
     if (previousCleanup) previousCleanup();
-    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card");
+    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card, .gallery-favorites-modal-card");
     dialog.hidden = false;
     dialog.classList.remove("is-opening", "is-closing");
     document.body.classList.add(bodyClass);
@@ -375,7 +377,7 @@
       return;
     }
     if (dialog.classList.contains("is-closing")) return;
-    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card");
+    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card, .gallery-favorites-modal-card");
     const finishImmediately = () => {
       dialog.hidden = true;
       dialog.classList.remove("is-opening", "is-closing");
@@ -421,9 +423,9 @@
   const sidebarFavoritesButton = document.getElementById("gallerySidebarFavorites");
   const sidebarSettingsButton = document.getElementById("gallerySidebarSettings");
 
-  // Modal priority follows the intended visual stack: preview > tag picker > settings.
+  // Modal priority: image preview > tag picker > settings > favorites.
   function getTopmostOpenDialog() {
-    return [lightbox, tagDialog, settingsDialog].find((dialog) =>
+    return [lightbox, tagDialog, settingsDialog, favoritesDialog].find((dialog) =>
       dialog && !dialog.hidden && !dialog.classList.contains("is-closing")
     ) || null;
   }
@@ -532,6 +534,53 @@
     });
   }
 
+  function openFavoritesDialog({ fromHistory = false, initial = false } = {}) {
+    if (!favoritesDialog || !favoritesDialog.hidden) return;
+    favoritesDialogTrigger = document.activeElement;
+    favoritesDialogHistoryEntry = !fromHistory && !initial;
+    openAnimatedDialog(favoritesDialog, "gallery-favorites-open");
+    if (favoritesDialogHistoryEntry) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("page", "favorites");
+      history.pushState({ ...(history.state || {}), view: "gallery", galleryFavoritesDialog: true }, "", url);
+    } else if (initial) {
+      history.replaceState({ ...(history.state || {}), view: "gallery", galleryFavoritesDialog: true }, "", window.location.href);
+    }
+    refreshFavoritesView();
+    const focusTarget = favoriteModalCloseButton || favoriteBackButton;
+    if (focusTarget) focusTarget.focus({ preventScroll: true });
+  }
+
+  function closeFavoritesDialog({ fromHistory = false } = {}) {
+    if (!favoritesDialog || favoritesDialog.hidden) return;
+    if (!fromHistory && favoritesDialogHistoryEntry && history.state && history.state.galleryFavoritesDialog) {
+      history.back();
+      return;
+    }
+    favoritesDialogHistoryEntry = false;
+    closeAnimatedDialog(favoritesDialog, "gallery-favorites-open", () => {
+      if (!fromHistory) {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("page") === "favorites") url.searchParams.set("page", "gallery");
+        history.replaceState({ ...(history.state || {}), view: "gallery", galleryFavoritesDialog: false }, "", url);
+      }
+      if (favoritesDialogTrigger && typeof favoritesDialogTrigger.focus === "function") favoritesDialogTrigger.focus({ preventScroll: true });
+      favoritesDialogTrigger = null;
+    });
+  }
+
+  if (favoritesDialog) {
+    document.addEventListener("keydown", (event) => {
+      if (favoritesDialog.hidden || getTopmostOpenDialog() !== favoritesDialog) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeFavoritesDialog();
+      } else {
+        trapDialogTab(event, favoritesDialog);
+      }
+    });
+  }
+
   if (settingsDialog) {
     settingsDialog.querySelectorAll("[data-gallery-settings-close]").forEach((button) => button.addEventListener("click", closeSettings));
     document.addEventListener("keydown", (event) => {
@@ -556,6 +605,8 @@
   let autoLoadArmed = true;
   let scrollObserver = null;
   let currentRoute = "home";
+  let favoritesDialogTrigger = null;
+  let favoritesDialogHistoryEntry = false;
   let lightboxTrigger = null;
   let lightboxSource = "gallery";
   let currentSourceName = "图片源";
@@ -828,7 +879,7 @@
 
     // Mutations from the main gallery only mark this view dirty; they must not
     // create hidden cards or start thumbnail requests in the background.
-    if (currentRoute !== "favorites") {
+    if (!favoritesDialog || favoritesDialog.hidden) {
       favoritesRenderDirty = true;
       cancelFavoriteRender();
       return;
@@ -858,7 +909,7 @@
     let index = 0;
     const buildBatch = () => {
       favoritesRenderFrame = 0;
-      if (renderVersion !== favoritesRenderVersion || currentRoute !== "favorites") {
+      if (renderVersion !== favoritesRenderVersion || !favoritesDialog || favoritesDialog.hidden) {
         favoritesRenderDirty = true;
         return;
       }
@@ -872,7 +923,7 @@
         favoritesRenderFrame = window.requestAnimationFrame(buildBatch);
         return;
       }
-      if (renderVersion !== favoritesRenderVersion || currentRoute !== "favorites") {
+      if (renderVersion !== favoritesRenderVersion || !favoritesDialog || favoritesDialog.hidden) {
         favoritesRenderDirty = true;
         return;
       }
@@ -885,7 +936,7 @@
     };
 
     favoritesRenderFrame = window.requestAnimationFrame(() => {
-      if (renderVersion !== favoritesRenderVersion || currentRoute !== "favorites") {
+      if (renderVersion !== favoritesRenderVersion || !favoritesDialog || favoritesDialog.hidden) {
         favoritesRenderFrame = 0;
         favoritesRenderDirty = true;
         return;
@@ -962,10 +1013,12 @@
   }
   if (sidebarFavoritesButton) sidebarFavoritesButton.addEventListener("click", () => {
     closeSidebar({ restoreFocus: false });
-    renderRoute("favorites", { updateHistory: true });
+    openFavoritesDialog();
   });
-  if (favoriteBackButton) favoriteBackButton.addEventListener("click", () => renderRoute("gallery", { updateHistory: true, replace: true }));
-  if (favoriteEmptyBackButton) favoriteEmptyBackButton.addEventListener("click", () => renderRoute("gallery", { updateHistory: true, replace: true }));
+  if (favoriteBackButton) favoriteBackButton.addEventListener("click", () => closeFavoritesDialog());
+  if (favoriteEmptyBackButton) favoriteEmptyBackButton.addEventListener("click", () => closeFavoritesDialog());
+  if (favoriteModalCloseButton) favoriteModalCloseButton.addEventListener("click", () => closeFavoritesDialog());
+  if (favoritesDialog) favoritesDialog.querySelectorAll("[data-gallery-favorites-close]").forEach((button) => button.addEventListener("click", () => closeFavoritesDialog()));
   if (favoriteMultiSelectButton) favoriteMultiSelectButton.addEventListener("click", () => {
     favoritesSelectionMode = !favoritesSelectionMode;
     selectedFavoriteUrls.clear();
@@ -1015,7 +1068,6 @@
       galleryPage.hidden = !pageActive;
       const galleryContent = galleryPage.querySelector(".gallery-content");
       if (galleryContent) galleryContent.hidden = currentRoute !== "gallery";
-      if (favoritesView) favoritesView.hidden = currentRoute !== "favorites";
       if (footer) footer.hidden = pageActive;
       window.scrollTo({ top: 0, behavior: "auto" });
       if (updateHistory) {
@@ -1033,7 +1085,6 @@
     if (previousRoute === "favorites" || nextRoute === "favorites") updateRoute();
     else transition(updateRoute);
     if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 100 });
-    if (currentRoute === "favorites") renderFavorites();
     if (currentRoute !== "home") checkProviderStatus();
   }
 
@@ -1052,16 +1103,23 @@
   });
 
   window.addEventListener("popstate", () => {
-    // A Back action should dismiss the open image preview before leaving the gallery.
     if (!lightbox.hidden) {
       closeLightbox({ fromHistory: true });
       return;
     }
+    const hasFavoritesHistory = Boolean(history.state && history.state.galleryFavoritesDialog);
+    if (favoritesDialog && !favoritesDialog.hidden && !hasFavoritesHistory) {
+      closeFavoritesDialog({ fromHistory: true });
+      return;
+    }
+    if (favoritesDialog && favoritesDialog.hidden && hasFavoritesHistory) {
+      openFavoritesDialog({ fromHistory: true });
+      return;
+    }
     const stateView = history.state && history.state.view;
     const pageParam = new URL(window.location.href).searchParams.get("page");
-    const nextRoute = stateView === "favorites" || pageParam === "favorites"
-      ? "favorites"
-      : stateView === "gallery" || pageParam === "gallery" ? "gallery" : "home";
+    const nextRoute = stateView === "gallery" || pageParam === "gallery" || pageParam === "favorites"
+      ? "gallery" : "home";
     // Closing a history-backed preview returns to the same gallery entry. Do not
     // call renderRoute in that case, because it would jump the page back to top.
     if (nextRoute !== currentRoute) renderRoute(nextRoute);
@@ -1783,9 +1841,13 @@
     scrollObserver.observe(moreButton);
   }
 
-  const initialRoute = new URL(window.location.href).searchParams.get("page") === "favorites" ? "favorites" : "gallery";
+  const initialPageParam = new URL(window.location.href).searchParams.get("page");
+  const initialRoute = "gallery";
   const initialHistoryState = { ...(history.state || {}), view: initialRoute };
   delete initialHistoryState.galleryLightbox;
+  if (initialPageParam === "favorites") initialHistoryState.galleryFavoritesDialog = true;
+  else delete initialHistoryState.galleryFavoritesDialog;
   history.replaceState(initialHistoryState, "", window.location.href);
   renderRoute(initialRoute);
+  if (initialPageParam === "favorites") openFavoritesDialog({ initial: true });
 })();
