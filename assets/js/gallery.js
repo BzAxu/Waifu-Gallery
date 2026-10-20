@@ -2158,8 +2158,13 @@
         if (list.includes(tag)) {
           if (tagSelectionMode === "block") blockedTags = blockedTags.filter((item) => item !== tag);
           else selectedTags = selectedTags.filter((item) => item !== tag);
-        } else if (tagSelectionMode === "block") blockedTags.push(tag);
-        else selectedTags.push(tag);
+        } else if (tagSelectionMode === "block") {
+          blockedTags.push(tag);
+          selectedTags = selectedTags.filter((item) => item !== tag);
+        } else {
+          selectedTags.push(tag);
+          blockedTags = blockedTags.filter((item) => item !== tag);
+        }
         syncTagOptionStates();
         renderSelectedTags();
         updateTagDialogHint();
