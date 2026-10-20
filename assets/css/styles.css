@@ -1362,18 +1362,18 @@ body.gallery-tags-open{ overflow:hidden; }
   animation: none;
 }
 
-/* All modal families share one predictable open/close lifecycle. */
-.gallery-tag-dialog.is-opening .gallery-tag-backdrop, .gallery-settings-dialog.is-opening .gallery-settings-backdrop, .gallery-lightbox.is-opening .gallery-lightbox-backdrop{
+/* All modal families use the same entrance and exit motion. */
+.gallery-tag-dialog.is-opening .gallery-tag-backdrop, .gallery-settings-dialog.is-opening .gallery-settings-backdrop, .gallery-lightbox.is-opening .gallery-lightbox-backdrop, .gallery-favorites-dialog.is-opening .gallery-favorites-backdrop{
   animation: galleryDialogBackdropIn 220ms ease both;
 }
-.gallery-tag-dialog.is-opening .gallery-tag-card, .gallery-settings-dialog.is-opening .gallery-settings-card, .gallery-lightbox.is-opening .gallery-lightbox-card{
+.gallery-tag-dialog.is-opening .gallery-tag-card, .gallery-settings-dialog.is-opening .gallery-settings-card, .gallery-lightbox.is-opening .gallery-lightbox-card, .gallery-favorites-dialog.is-opening .gallery-favorites-modal-card{
   animation: galleryDialogPanelIn 300ms cubic-bezier(.2,.8,.2,1) both;
 }
-.gallery-tag-dialog.is-closing .gallery-tag-backdrop, .gallery-settings-dialog.is-closing .gallery-settings-backdrop, .gallery-lightbox.is-closing .gallery-lightbox-backdrop{
+.gallery-tag-dialog.is-closing .gallery-tag-backdrop, .gallery-settings-dialog.is-closing .gallery-settings-backdrop, .gallery-lightbox.is-closing .gallery-lightbox-backdrop, .gallery-favorites-dialog.is-closing .gallery-favorites-backdrop{
   animation: galleryDialogBackdropOut 180ms ease both;
   pointer-events: none;
 }
-.gallery-tag-dialog.is-closing .gallery-tag-card, .gallery-settings-dialog.is-closing .gallery-settings-card, .gallery-lightbox.is-closing .gallery-lightbox-card{
+.gallery-tag-dialog.is-closing .gallery-tag-card, .gallery-settings-dialog.is-closing .gallery-settings-card, .gallery-lightbox.is-closing .gallery-lightbox-card, .gallery-favorites-dialog.is-closing .gallery-favorites-modal-card{
   animation: galleryDialogPanelOut 190ms cubic-bezier(.4,0,1,1) both;
   pointer-events: none;
 }
@@ -2168,10 +2168,7 @@ body.gallery-sidebar-open{ overflow:hidden; }
 .gallery-favorites-modal-close:hover{transform:translateY(-2px);border-color:rgba(169,155,255,.55);background:rgba(169,155,255,.13)}
 .gallery-favorites-view{width:100%;margin:0;animation:none!important}
 .gallery-favorites-heading{padding-top:6px}
-.gallery-favorites-dialog.is-opening .gallery-favorites-backdrop{animation:galleryDialogBackdropInElegant 420ms ease both}
-.gallery-favorites-dialog.is-opening .gallery-favorites-modal-card{animation:galleryDialogPanelInElegant 480ms var(--motion-settle) both}
-.gallery-favorites-dialog.is-closing .gallery-favorites-backdrop{animation:galleryDialogBackdropOutElegant 300ms ease both}
-.gallery-favorites-dialog.is-closing .gallery-favorites-modal-card{animation:galleryDialogPanelOutElegant 300ms cubic-bezier(.4,0,.2,1) both;pointer-events:none}
+/* Favorites uses the same shared dialog animations as settings and tags. */
 body.gallery-favorites-open{overflow:hidden}
 @media(max-width:700px){.gallery-favorites-dialog{padding:8px}.gallery-favorites-modal-card{width:100%;max-height:92dvh;padding:14px 12px 18px;border-radius:20px}.gallery-favorites-heading{padding-top:2px}.gallery-favorites-modal-close{margin:-2px -2px 0 8px}}
 @media(prefers-reduced-motion:reduce){.gallery-favorites-dialog.is-opening .gallery-favorites-backdrop,.gallery-favorites-dialog.is-opening .gallery-favorites-modal-card,.gallery-favorites-dialog.is-closing .gallery-favorites-backdrop,.gallery-favorites-dialog.is-closing .gallery-favorites-modal-card{animation:none!important}.gallery-favorites-modal-close{transition:none!important}}
