@@ -314,7 +314,9 @@ export async function onRequestGet({ request }) {
     ? [...activeProviders].filter((provider) => blockedTags.length
         ? provider.supportsBlockedTags
         : (!tags.length || provider.supportsTags))
-        .sort((a, b) => (b.batchSize || 0) - (a.batchSize || 0))
+        .sort((a, b) => blockedTags.length
+          ? (a.id === "waifuim" ? -1 : b.id === "waifuim" ? 1 : (b.batchSize || 0) - (a.batchSize || 0))
+          : (b.batchSize || 0) - (a.batchSize || 0))
     : activeProviders.filter((provider) => provider.id === selected);
 
   if (!candidates.length) return json({ error: "没有支持当前标签筛选的图片源。" }, 400);
