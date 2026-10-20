@@ -1011,7 +1011,7 @@
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
   }
 
-  const FAVORITE_ZIP_BATCH_SIZE = 100;
+  const FAVORITE_ZIP_BATCH_SIZE = 50;
   let favoriteDownloadController = null;
   let favoriteDownloadCancelled = false;
   let downloadManagerHasRun = false;
