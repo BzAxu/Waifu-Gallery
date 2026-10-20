@@ -2260,3 +2260,23 @@ body.gallery-download-manager-open{overflow:hidden}
   .gallery-favorites-grid{column-gap:8px}
   .gallery-favorites-grid > .gallery-favorite-card{margin-bottom:8px}
 }
+
+
+/* Local download tags and the download-all confirmation dialog. */
+.gallery-favorite-local-tag{position:absolute;z-index:4;top:10px;right:10px;padding:5px 8px;border:1px solid rgba(108,220,173,.35);border-radius:9px;color:#b5f3d5;background:rgba(12,35,29,.88);font-size:10px;font-weight:750;line-height:1.2;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.gallery-favorite-local-tag[hidden]{display:none!important}
+.gallery-download-confirm[hidden]{display:none!important}
+.gallery-download-confirm{position:fixed;inset:0;z-index:180;display:grid;place-items:center;padding:16px;isolation:isolate}
+.gallery-download-confirm-backdrop{position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(4,6,14,.78);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.gallery-download-confirm-card{position:relative;z-index:1;width:min(440px,100%);padding:24px;border:1px solid rgba(221,218,255,.24);border-radius:22px;background:linear-gradient(145deg,rgba(31,35,57,.98),rgba(10,13,25,.99));box-shadow:0 28px 90px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.1)}
+.gallery-download-confirm-card h2{margin:7px 0;font-size:23px}
+.gallery-download-confirm-card .gallery-settings-description{margin:0 0 16px}
+.gallery-download-confirm-option{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid rgba(169,155,255,.22);border-radius:12px;background:rgba(169,155,255,.07);font-size:13px;cursor:pointer}
+.gallery-download-confirm-option input{width:17px;height:17px;margin:0;accent-color:#a99bff}
+.gallery-download-confirm-summary{min-height:22px;margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.7}
+.gallery-download-confirm-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
+.gallery-download-confirm-actions .button{min-height:40px}
+.gallery-download-confirm-actions .button:disabled{opacity:.45}
+body.gallery-download-confirm-open{overflow:hidden}
+@media(max-width:480px){.gallery-download-confirm-card{padding:20px 16px;border-radius:18px}.gallery-download-confirm-actions .button{flex:1}}
+@media(prefers-reduced-motion:reduce){.gallery-download-confirm-card{animation:none!important}}
