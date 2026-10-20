@@ -612,6 +612,9 @@
     });
   }
   if (downloadManager) {
+    // The header × button is intentionally wired explicitly; unlike the footer
+    // button and backdrop, it does not carry data-download-manager-close.
+    downloadManagerClose?.addEventListener("click", closeDownloadManager);
     downloadManager.querySelectorAll("[data-download-manager-close]").forEach((button) =>
       button.addEventListener("click", closeDownloadManager));
     document.addEventListener("keydown", (event) => {
