@@ -2322,3 +2322,22 @@ body.gallery-download-confirm-open{overflow:hidden}
     animation: none !important;
   }
 }
+
+
+/* Local favorites use the same viewport-triggered reveal and existing entrance
+   animation as the main gallery; no favorite rendering or image-loading changes. */
+.gallery-favorites-grid .gallery-favorite-card.gallery-scroll-reveal:not(.is-card-visible) {
+  opacity: 0;
+  animation: none !important;
+}
+.gallery-favorites-grid .gallery-favorite-card.gallery-scroll-reveal.is-card-visible {
+  animation: galleryCardEnterElegant 760ms var(--motion-smooth) both;
+  animation-delay: var(--gallery-reveal-delay, 0ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gallery-favorites-grid .gallery-favorite-card.gallery-scroll-reveal:not(.is-card-visible),
+  .gallery-favorites-grid .gallery-favorite-card.gallery-scroll-reveal.is-card-visible {
+    opacity: 1;
+    animation: none !important;
+  }
+}
