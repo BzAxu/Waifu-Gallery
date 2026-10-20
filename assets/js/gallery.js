@@ -88,6 +88,25 @@
   let galleryLanes = [];
   let galleryGeneration = 0;
 
+  // Keep only cards near the viewport mounted. Lightweight placeholders retain
+  // masonry geometry while detached image elements can release decoded bitmaps.
+  // The original card nodes (and event handlers) are kept for seamless restore.
+  const virtualizedGalleryCards = new Map();
+  const galleryVirtualizationObserver = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          const target = entry.target;
+          if (target.classList.contains("gallery-virtual-placeholder")) {
+            if (entry.isIntersecting) restoreVirtualizedGalleryCard(target);
+            continue;
+          }
+          if (!entry.isIntersecting && target.classList.contains("gallery-item--loaded")) {
+            virtualizeGalleryCard(target);
+          }
+        }
+      }, { root: null, rootMargin: "1000px 0px", threshold: 0 })
+    : null;
+
   function getShortestLane(lanes) {
     if (!lanes.length) return null;
     return lanes.reduce((shortest, current) =>
@@ -183,7 +202,87 @@
   }
 
   function imageCount() {
-    return grid.querySelectorAll(".gallery-item--loaded").length;
+    // Virtual placeholders count as loaded images so infinite-scroll/refill logic
+    // never mistakes detached cards for missing results and fetches duplicates.
+    return grid.querySelectorAll(".gallery-item--loaded, .gallery-virtual-placeholder").length;
+  }
+
+  function virtualizeGalleryCard(card) {
+    if (!galleryVirtualizationObserver || !card || !card.isConnected ||
+        !card.classList.contains("gallery-item--loaded")) return;
+    // Never detach a focused control: keyboard navigation must remain predictable.
+    if (card.contains(document.activeElement)) return;
+    const rect = card.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+
+    const placeholder = document.createElement("div");
+    placeholder.className = "gallery-virtual-placeholder";
+    placeholder.setAttribute("aria-hidden", "true");
+    placeholder.dataset.sourceUrl = card.dataset.sourceUrl || "";
+    placeholder.style.cssText = [
+      "display:block",
+      "width:100%",
+      "aspect-ratio:" + rect.width + " / " + rect.height,
+      "min-height:1px",
+      "border:0",
+      "padding:0",
+      "margin-top:" + (window.getComputedStyle(card).marginTop || "0px"),
+      "margin-bottom:" + (window.getComputedStyle(card).marginBottom || "0px"),
+      "border-radius:inherit",
+      "background:transparent",
+      "pointer-events:none"
+    ].join(";");
+
+    const img = card.querySelector("img");
+    if (img) {
+      img.dataset.virtualizedSrc = card.dataset.sourceUrl || img.currentSrc || img.src;
+      // Remove the source as well as the card to let the browser release decoded
+      // bitmap memory. The URL remains on the detached node for later restoration.
+      img.removeAttribute("src");
+    }
+    virtualizedGalleryCards.set(placeholder, card);
+    card.replaceWith(placeholder);
+    galleryScrollRevealObserver?.unobserve(card);
+    galleryVirtualizationObserver.observe(placeholder);
+  }
+
+  function restoreVirtualizedGalleryCard(placeholder) {
+    const card = virtualizedGalleryCards.get(placeholder);
+    if (!card || !placeholder.isConnected) return;
+    galleryVirtualizationObserver?.unobserve(placeholder);
+    placeholder.replaceWith(card);
+    virtualizedGalleryCards.delete(placeholder);
+
+    // Entrance animation has already run; do not replay it on every scroll-back.
+    card.classList.add("is-card-visible");
+    card.style.animation = "none";
+    card.style.willChange = "auto";
+    const img = card.querySelector("img");
+    if (img && !img.hasAttribute("src")) {
+      const url = img.dataset.virtualizedSrc || card.dataset.sourceUrl;
+      delete img.dataset.virtualizedSrc;
+      if (url) {
+        img.loading = "lazy";
+        img.addEventListener("error", () => img.classList.add("is-broken"), { once: true });
+        img.src = url;
+      }
+    }
+    galleryVirtualizationObserver.observe(card);
+  }
+
+  function clearVirtualizedGalleryCards() {
+    for (const [placeholder, card] of virtualizedGalleryCards) {
+      galleryVirtualizationObserver?.unobserve(placeholder);
+      placeholder.remove();
+      card.remove();
+    }
+    virtualizedGalleryCards.clear();
+  }
+
+  function observeGalleryCardForVirtualization(card) {
+    if (galleryVirtualizationObserver && card && card.isConnected) {
+      galleryVirtualizationObserver.observe(card);
+    }
   }
 
   function pendingImageCount() {
@@ -1492,7 +1591,7 @@
     // animations remain active, and other route transitions are unchanged.
     if (previousRoute === "favorites" || nextRoute === "favorites") updateRoute();
     else transition(updateRoute);
-    if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 100 });
+    if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 24 });
     if (currentRoute !== "home") checkProviderStatus();
   }
 
@@ -1624,7 +1723,7 @@
       requestAnimationFrame(() => {
         if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" || lastBatchAdded <= 0) return;
         if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-          loadImages({ targetCount: 100 });
+          loadImages({ targetCount: 24 });
         }
       });
     }
@@ -1792,6 +1891,7 @@
       // decorative placeholders that are temporarily pinned to the bottom.
       insertLoadedCardBeforePlaceholders(card);
       revealGalleryCardOnScroll(card);
+      observeGalleryCardForVirtualization(card);
       empty.hidden = true;
       settleImageBatch(batch, true);
     };
@@ -1830,7 +1930,8 @@
     if (reset) {
       galleryGeneration++;
       cancelPendingImages();
-      grid.querySelectorAll(".gallery-item").forEach((card) => card.remove());
+      clearVirtualizedGalleryCards();
+      grid.querySelectorAll(".gallery-item, .gallery-virtual-placeholder").forEach((card) => card.remove());
       grid.querySelectorAll(".gallery-skeleton-placeholder").forEach((item) => item.remove());
       seen.clear();
       lastRequestUsedFallback = false;
@@ -2403,7 +2504,7 @@
       const blockText = blockedTags.length ? "屏蔽：" + blockedTags.map(tagLabel).join("、") : "未设置屏蔽标签";
       tagHint.textContent = includeText + " · " + blockText + (persisted ? " · 已保存" : " · 保存失败");
     }
-    closeTagDialog(); loadImages({ reset: true, targetCount: 100 });
+    closeTagDialog(); loadImages({ reset: true, targetCount: 24 });
   });
 
   function tagFilteringAvailable() {
@@ -2423,24 +2524,24 @@
   refreshButton.addEventListener("click", () => {
     syncSelectedTagsFromInput(); saveTagPreferences();
     lastRequestUsedFallback = false;
-    loadImages({ reset: true, targetCount: 100 });
+    loadImages({ reset: true, targetCount: 24 });
   });
   if (sourceSelect) sourceSelect.addEventListener("change", () => {
     syncSelectedTagsFromInput(); saveTagPreferences();
     updateTagFilterAvailability();
-    loadImages({ reset: true, targetCount: 100 });
+    loadImages({ reset: true, targetCount: 24 });
   });
-  if (tagApplyButton) tagApplyButton.addEventListener("click", () => { syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 100 }); });
+  if (tagApplyButton) tagApplyButton.addEventListener("click", () => { syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 24 }); });
   if (tagInput) tagInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !tagInput.disabled) {
       event.preventDefault();
-      syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 100 });
+      syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 24 });
     }
   });
   updateTagFilterAvailability();
   if (providerStatusRefresh) providerStatusRefresh.addEventListener("click", checkProviderStatus);
-  retryButton.addEventListener("click", () => loadImages({ reset: imageCount() === 0, targetCount: imageCount() === 0 ? 100 : 20 }));
-  moreButton.addEventListener("click", () => loadImages({ targetCount: 100 }));
+  retryButton.addEventListener("click", () => loadImages({ reset: imageCount() === 0, targetCount: imageCount() === 0 ? 24 : 20 }));
+  moreButton.addEventListener("click", () => loadImages({ targetCount: 24 }));
 
   // Reliable infinite scroll: check the sentinel on scroll, resize, and after every batch.
   // This also fills short screens automatically without depending on observer re-entry.
@@ -2454,7 +2555,7 @@
       if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" ||
           lastBatchAdded <= 0 || !moreButton) return;
       if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-        loadImages({ targetCount: 100 });
+        loadImages({ targetCount: 24 });
       }
     });
   }
