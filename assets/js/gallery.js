@@ -87,18 +87,6 @@
   // Pending cards are appended at the end and stay in their lane when loaded.
   let galleryLanes = [];
   let galleryGeneration = 0;
-  // Reveal cards only when they approach the viewport, following the homepage's
-  // IntersectionObserver pattern and avoiding off-screen entrance work on mobile.
-  let galleryRevealObserver = null;
-  if ("IntersectionObserver" in window) {
-    galleryRevealObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        entry.target.classList.add("is-card-visible");
-        galleryRevealObserver.unobserve(entry.target);
-      });
-    }, { threshold: 0.08, rootMargin: "160px 0px" });
-  }
 
   function getShortestLane(lanes) {
     if (!lanes.length) return null;
@@ -175,8 +163,6 @@
     const firstPlaceholder = lane.querySelector(":scope > .gallery-skeleton-placeholder");
     if (firstPlaceholder) lane.insertBefore(card, firstPlaceholder);
     else lane.append(card);
-    if (galleryRevealObserver) galleryRevealObserver.observe(card);
-    else card.classList.add("is-card-visible");
     animatePlaceholderReflow(beforeRects);
   }
 
@@ -187,8 +173,8 @@
   }
 
   // A refresh invalidates previous image requests and releases their timers.
-  // Pending cards enter their masonry lane immediately, while native lazy loading
-  // defers network work until the image approaches the viewport.
+  // Unresolved images are deliberately kept off-DOM, so they can never disturb
+  // the masonry lanes or be mistaken for visible gallery cards.
   function cancelPendingImages() {
     for (const record of pendingImages) {
       if (typeof record.cancel === "function") record.cancel();
@@ -1505,7 +1491,7 @@
     // animations remain active, and other route transitions are unchanged.
     if (previousRoute === "favorites" || nextRoute === "favorites") updateRoute();
     else transition(updateRoute);
-    if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 24 });
+    if (currentRoute === "gallery" && !imageCount() && !loading) loadImages({ reset: true, targetCount: 100 });
     if (currentRoute !== "home") checkProviderStatus();
   }
 
@@ -1637,7 +1623,7 @@
       requestAnimationFrame(() => {
         if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" || lastBatchAdded <= 0) return;
         if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-          loadImages({ targetCount: 24 });
+          loadImages({ targetCount: 100 });
         }
       });
     }
@@ -1701,7 +1687,7 @@
     previewButton.dataset.sourceUrl = url;
     previewButton.dataset.title = "随机插画";
     const img = document.createElement("img");
-    img.loading = "lazy";
+    img.loading = "eager";
     img.decoding = "async";
     img.alt = "插画";
     img.className = "is-loading";
@@ -1721,17 +1707,6 @@
 
     card.dataset.sourceUrl = url;
     card.dataset.title = "随机插画";
-
-    // Attach the pending card before assigning src so native loading="lazy"
-    // can defer off-screen image requests instead of downloading the whole batch.
-    const pendingLane = getShortestContentLane();
-    if (pendingLane) {
-      const firstPlaceholder = pendingLane.querySelector(":scope > .gallery-skeleton-placeholder");
-      if (firstPlaceholder) pendingLane.insertBefore(card, firstPlaceholder);
-      else pendingLane.append(card);
-      if (galleryRevealObserver) galleryRevealObserver.observe(card);
-      else card.classList.add("is-card-visible");
-    }
 
     const record = {
       generation,
@@ -1790,9 +1765,9 @@
       img.classList.remove("is-loading");
       card.classList.add("gallery-item--loaded");
 
-      // The pending card is already in its lane. Only insert here as a
-      // fallback if another action removed it before the image finished loading.
-      if (!card.isConnected) insertLoadedCardBeforePlaceholders(card);
+      // Insert the successful image among real cards, immediately above the
+      // decorative placeholders that are temporarily pinned to the bottom.
+      insertLoadedCardBeforePlaceholders(card);
       empty.hidden = true;
       settleImageBatch(batch, true);
     };
@@ -2296,7 +2271,7 @@
       const blockText = blockedTags.length ? "屏蔽：" + blockedTags.map(tagLabel).join("、") : "未设置屏蔽标签";
       tagHint.textContent = includeText + " · " + blockText + (persisted ? " · 已保存" : " · 保存失败");
     }
-    closeTagDialog(); loadImages({ reset: true, targetCount: 24 });
+    closeTagDialog(); loadImages({ reset: true, targetCount: 100 });
   });
 
   function tagFilteringAvailable() {
@@ -2316,24 +2291,24 @@
   refreshButton.addEventListener("click", () => {
     syncSelectedTagsFromInput(); saveTagPreferences();
     lastRequestUsedFallback = false;
-    loadImages({ reset: true, targetCount: 24 });
+    loadImages({ reset: true, targetCount: 100 });
   });
   if (sourceSelect) sourceSelect.addEventListener("change", () => {
     syncSelectedTagsFromInput(); saveTagPreferences();
     updateTagFilterAvailability();
-    loadImages({ reset: true, targetCount: 24 });
+    loadImages({ reset: true, targetCount: 100 });
   });
-  if (tagApplyButton) tagApplyButton.addEventListener("click", () => { syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 24 }); });
+  if (tagApplyButton) tagApplyButton.addEventListener("click", () => { syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 100 }); });
   if (tagInput) tagInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !tagInput.disabled) {
       event.preventDefault();
-      syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 24 });
+      syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 100 });
     }
   });
   updateTagFilterAvailability();
   if (providerStatusRefresh) providerStatusRefresh.addEventListener("click", checkProviderStatus);
   retryButton.addEventListener("click", () => loadImages({ reset: imageCount() === 0, targetCount: imageCount() === 0 ? 100 : 20 }));
-  moreButton.addEventListener("click", () => loadImages({ targetCount: 24 }));
+  moreButton.addEventListener("click", () => loadImages({ targetCount: 100 }));
 
   // Reliable infinite scroll: check the sentinel on scroll, resize, and after every batch.
   // This also fills short screens automatically without depending on observer re-entry.
@@ -2347,7 +2322,7 @@
       if (loading || pendingImageCount() > 0 || currentRoute !== "gallery" ||
           lastBatchAdded <= 0 || !moreButton) return;
       if (moreButton.getBoundingClientRect().top < window.innerHeight + 700) {
-        loadImages({ targetCount: 24 });
+        loadImages({ targetCount: 100 });
       }
     });
   }
