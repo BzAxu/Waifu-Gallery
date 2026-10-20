@@ -2278,7 +2278,7 @@
   if (tagCategoryTabs) tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((button) => button.addEventListener("click", () => {
     activeTagCategory = button.dataset.tagCategory;
     tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((tab) => { const active = tab === button; tab.classList.toggle("is-active", active); tab.setAttribute("aria-selected", String(active)); });
-    renderTagOptions({ animate: true });
+    renderTagOptions();
   }));
   if (tagClearButton) tagClearButton.addEventListener("click", () => {
     if (tagSelectionMode === "block") blockedTags = [];
