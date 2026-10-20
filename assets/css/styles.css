@@ -1942,17 +1942,36 @@ body.gallery-sidebar-open{ overflow:hidden; }
   color:inherit; background:transparent!important; box-shadow:none!important; text-align:left; line-height:0;
   overflow:hidden; cursor:zoom-in;
 }
+/* Anchor favorite controls to the full thumbnail card, not the image's intrinsic height. */
+#galleryGrid .gallery-item{
+  position:relative!important;
+  overflow:hidden;
+  isolation:isolate;
+}
+#galleryGrid .gallery-favorite-toggle{
+  position:absolute!important;
+  right:9px!important;
+  bottom:9px!important;
+  z-index:10!important;
+  transform:none;
+}
+#galleryGrid .gallery-favorite-toggle:hover{
+  transform:translateY(-2px);
+}
+#galleryGrid .gallery-favorite-toggle.is-favorite{
+  background:rgba(51,21,45,.9)!important;
+}
 #galleryGrid .gallery-item-preview > img{
   display:block!important; width:100%!important; height:auto!important; min-height:0!important;
   max-height:none!important; aspect-ratio:auto!important; object-fit:contain!important; object-position:center top;
 }
 .gallery-item-preview:focus-visible{ outline:2px solid var(--accent-2); outline-offset:-3px; }
 .gallery-favorite-toggle{
-  position:absolute!important; z-index:5; right:9px; bottom:9px; display:grid!important; place-items:center;
-  width:40px; height:40px; min-width:40px; min-height:40px; padding:9px!important;
-  border:1px solid rgba(255,255,255,.34)!important; border-radius:14px!important;
-  color:#fff; background:rgba(15,17,31,.68)!important; box-shadow:0 7px 20px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.2)!important;
-  backdrop-filter:blur(16px) saturate(165%); -webkit-backdrop-filter:blur(16px) saturate(165%);
+  position:absolute!important; z-index:10; right:9px; bottom:9px; display:grid!important; place-items:center;
+  width:40px; height:40px; min-width:40px; min-height:40px; padding:9px!important; box-sizing:border-box;
+  border:1px solid rgba(255,255,255,.42)!important; border-radius:14px!important;
+  color:#fff; background:rgba(15,17,31,.86)!important; box-shadow:0 7px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.24)!important;
+  backdrop-filter:blur(18px) saturate(175%); -webkit-backdrop-filter:blur(18px) saturate(175%);
   cursor:pointer; line-height:1; transition:transform .2s ease,background .2s ease,color .2s ease,border-color .2s ease;
 }
 .gallery-favorite-toggle svg{ display:block; width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
