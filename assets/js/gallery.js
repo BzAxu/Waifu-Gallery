@@ -35,6 +35,10 @@
   const favoritesDialog = document.getElementById("galleryFavoritesDialog");
   const favoritesView = document.getElementById("galleryFavoritesView");
   const favoritesGrid = document.getElementById("galleryFavoritesGrid");
+  const favoritesPagination = document.getElementById("galleryFavoritesPagination");
+  const favoritesPreviousPage = document.getElementById("galleryFavoritesPreviousPage");
+  const favoritesNextPage = document.getElementById("galleryFavoritesNextPage");
+  const favoritesPageLabel = document.getElementById("galleryFavoritesPageLabel");
   const favoritesEmpty = document.getElementById("galleryFavoritesEmpty");
   const favoritesCount = document.getElementById("galleryFavoritesStatus");
   const sidebarFavoriteCount = document.getElementById("gallerySidebarFavoriteCount");
@@ -614,6 +618,8 @@
   const favoritesStorageKey = "bzaxu-gallery-favorites-v1";
   const favoriteButtonStorageKey = "bzaxu-gallery-show-favorite-button";
   let favorites = readStoredFavorites();
+  const FAVORITES_PAGE_SIZE = 50;
+  let favoritesPage = 0;
   let showFavoriteButton = readFavoriteButtonPreference();
   let favoritesSelectionMode = false;
   let selectedFavoriteUrls = new Set();
@@ -867,6 +873,15 @@
     return card;
   }
 
+  function syncFavoritesPagination() {
+    const totalPages = Math.max(1, Math.ceil(favorites.length / FAVORITES_PAGE_SIZE));
+    favoritesPage = Math.min(favoritesPage, totalPages - 1);
+    if (favoritesPagination) favoritesPagination.hidden = favorites.length <= FAVORITES_PAGE_SIZE;
+    if (favoritesPageLabel) favoritesPageLabel.textContent = `第 ${favoritesPage + 1} / ${totalPages} 页 · 共 ${favorites.length} 张`;
+    if (favoritesPreviousPage) favoritesPreviousPage.disabled = favoritesPage <= 0;
+    if (favoritesNextPage) favoritesNextPage.disabled = favoritesPage >= totalPages - 1;
+  }
+
   function renderFavorites() {
     if (!favoritesGrid || !favoritesEmpty) return;
     if (!favorites.length) {
@@ -875,6 +890,7 @@
     }
     const stillSaved = new Set(favorites.map((item) => item.url));
     selectedFavoriteUrls = new Set([...selectedFavoriteUrls].filter((url) => stillSaved.has(url)));
+    syncFavoritesPagination();
     syncFavoriteToolbar();
 
     // Mutations from the main gallery only mark this view dirty; they must not
@@ -888,7 +904,8 @@
 
     cancelFavoriteRender();
     const renderVersion = ++favoritesRenderVersion;
-    const items = favorites.slice();
+    const start = favoritesPage * FAVORITES_PAGE_SIZE;
+    const items = favorites.slice(start, start + FAVORITES_PAGE_SIZE);
 
     if (!items.length) {
       favoritesGrid.replaceChildren();
@@ -932,6 +949,7 @@
       favoritesGrid.hidden = false;
       favoritesEmpty.hidden = true;
       favoritesRenderDirty = false;
+      syncFavoritesPagination();
       syncFavoriteToolbar();
     };
 
@@ -1037,6 +1055,18 @@
     syncFavoriteButtons();
     refreshFavoritesView();
     showToast(persisted ? "已清除全部收藏" : "已暂时清除，但浏览器存储不可用，刷新后可能恢复");
+  });
+  if (favoritesPreviousPage) favoritesPreviousPage.addEventListener("click", () => {
+    if (favoritesPage <= 0) return;
+    favoritesPage--;
+    refreshFavoritesView();
+    favoritesDialog?.querySelector(".gallery-favorites-modal-card")?.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  if (favoritesNextPage) favoritesNextPage.addEventListener("click", () => {
+    if (favoritesPage >= Math.ceil(favorites.length / FAVORITES_PAGE_SIZE) - 1) return;
+    favoritesPage++;
+    refreshFavoritesView();
+    favoritesDialog?.querySelector(".gallery-favorites-modal-card")?.scrollTo({ top: 0, behavior: "smooth" });
   });
   if (favoriteDownloadAllButton) favoriteDownloadAllButton.addEventListener("click", () => runFavoriteDownloads(favorites.map((item) => item.url)));
   if (favoriteDownloadSelectedButton) favoriteDownloadSelectedButton.addEventListener("click", () => {
