@@ -634,7 +634,7 @@
       }
       if (!visible && button.hidden) return;
       button.hidden = false;
-      button.style.setProperty("--favorite-visibility-delay", Math.min(index, 12) * 18 + "ms");
+      button.style.setProperty("--favorite-visibility-delay", Math.min(index, 16) * 32 + "ms");
       void button.offsetWidth;
       button.classList.add(visible ? "is-showing" : "is-hiding");
       const finish = () => {
