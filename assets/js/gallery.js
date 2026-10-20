@@ -174,6 +174,7 @@
       lane.className = "gallery-column";
       return lane;
     });
+    grid.dataset.columns = String(count);
     grid.replaceChildren(...galleryLanes);
     // Reflow loaded cards first, then pin decorative placeholders to the bottom.
     galleryItems.forEach((item) => getShortestGalleryLane().append(item));
@@ -617,13 +618,65 @@
     button.setAttribute("aria-pressed", String(active));
     button.setAttribute("aria-label", active ? "从本地收藏夹移除" : "加入本地收藏夹");
     button.title = active ? "已收藏，点击移除" : "加入本地收藏夹";
-    button.hidden = !showFavoriteButton;
+  }
+
+  let favoriteVisibilityAnimationId = 0;
+  function animateFavoriteButtonVisibility(visible) {
+    const buttons = [...grid.querySelectorAll(".gallery-favorite-toggle")];
+    const animationId = ++favoriteVisibilityAnimationId;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    buttons.forEach((button, index) => {
+      button.classList.remove("is-showing", "is-hiding");
+      if (reducedMotion) {
+        button.hidden = !visible;
+        button.style.removeProperty("--favorite-visibility-delay");
+        return;
+      }
+      if (!visible && button.hidden) return;
+      button.hidden = false;
+      button.style.setProperty("--favorite-visibility-delay", Math.min(index, 12) * 18 + "ms");
+      void button.offsetWidth;
+      button.classList.add(visible ? "is-showing" : "is-hiding");
+      const finish = () => {
+        if (animationId !== favoriteVisibilityAnimationId) return;
+        if (!visible) button.hidden = true;
+        button.classList.remove("is-showing", "is-hiding");
+        button.style.removeProperty("--favorite-visibility-delay");
+      };
+      button.addEventListener("animationend", (event) => {
+        if (event.target === button) finish();
+      }, { once: true });
+      window.setTimeout(finish, visible ? 920 : 690);
+    });
   }
 
   function syncFavoriteButtons() {
     grid.querySelectorAll(".gallery-favorite-toggle").forEach((button) => {
       updateFavoriteButton(button, button.dataset.sourceUrl || "");
     });
+  }
+
+  function showCenterHeart(card) {
+    const heart = card?.querySelector(".gallery-heart-feedback");
+    if (!heart) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) {
+      heart.classList.add("is-static-visible");
+      window.setTimeout(() => heart.classList.remove("is-static-visible"), 650);
+      return;
+    }
+    const animationId = Number(heart.dataset.animationId || "0") + 1;
+    heart.dataset.animationId = String(animationId);
+    heart.classList.remove("is-animating");
+    void heart.offsetWidth;
+    heart.classList.add("is-animating");
+    const finish = (event) => {
+      if (event && event.target !== heart) return;
+      if (heart.dataset.animationId !== String(animationId)) return;
+      heart.classList.remove("is-animating");
+    };
+    heart.addEventListener("animationend", finish, { once: true });
+    window.setTimeout(() => finish(), 1100);
   }
 
   function syncFavoriteToolbar() {
@@ -649,6 +702,7 @@
   function updateFavoritePreference() {
     showFavoriteButton = Boolean(showFavoriteButtonCheckbox?.checked);
     try { localStorage.setItem(favoriteButtonStorageKey, String(showFavoriteButton)); } catch (_) {}
+    animateFavoriteButtonVisibility(showFavoriteButton);
     syncFavoriteButtons();
     showToast(showFavoriteButton ? "已显示缩略图收藏按钮" : "已隐藏缩略图收藏按钮");
   }
@@ -668,6 +722,20 @@
     syncFavoriteButtons();
     renderFavorites();
     showToast(persisted ? message : message + "，但浏览器存储不可用，刷新后可能丢失");
+  }
+
+  function addFavorite(url, title, source, card) {
+    if (favorites.some((item) => item.url === url)) {
+      showCenterHeart(card);
+      showToast("这张图片已经收藏过了");
+      return;
+    }
+    favorites.unshift({ url, title, source, addedAt: Date.now() });
+    const persisted = saveStoredFavorites();
+    syncFavoriteButtons();
+    renderFavorites();
+    showCenterHeart(card);
+    showToast(persisted ? "已通过右键加入收藏" : "已加入收藏，但浏览器存储不可用，刷新后可能丢失");
   }
 
   function removeFavoriteUrls(urls) {
@@ -1068,7 +1136,12 @@
     favoriteButton.dataset.sourceUrl = url;
     favoriteButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.2 5.2 0 0 0-7.4 0L12 6l-1.4-1.4a5.2 5.2 0 0 0-7.4 7.4l1.4 1.4L12 20.8l7.4-7.4 1.4-1.4a5.2 5.2 0 0 0 0-7.4Z"/></svg>';
     updateFavoriteButton(favoriteButton, url);
-    card.append(previewButton, favoriteButton);
+    favoriteButton.hidden = !showFavoriteButton;
+    const heartFeedback = document.createElement("span");
+    heartFeedback.className = "gallery-heart-feedback";
+    heartFeedback.setAttribute("aria-hidden", "true");
+    heartFeedback.innerHTML = '<svg viewBox="0 0 24 24" focusable="false"><path d="M20.8 4.6a5.2 5.2 0 0 0-7.4 0L12 6l-1.4-1.4a5.2 5.2 0 0 0-7.4 7.4l1.4 1.4L12 20.8l7.4-7.4 1.4-1.4a5.2 5.2 0 0 0 0-7.4Z"/></svg>';
+    card.append(previewButton, favoriteButton, heartFeedback);
 
     card.dataset.sourceUrl = url;
     card.dataset.title = "随机插画";
@@ -1151,10 +1224,17 @@
     img.src = url;
 
     previewButton.addEventListener("click", () => openGalleryLightbox(url, card.dataset.title, previewButton, "gallery"));
+    previewButton.addEventListener("contextmenu", (event) => {
+      if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+      event.preventDefault();
+      addFavorite(url, card.dataset.title, sourceName, card);
+    });
     favoriteButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
+      const wasFavorite = favorites.some((item) => item.url === url);
       toggleFavorite(url, card.dataset.title, sourceName);
+      if (!wasFavorite) showCenterHeart(card);
     });
     return true;
   }
