@@ -226,7 +226,8 @@
       "min-height:1px",
       "border:0",
       "padding:0",
-      "margin:0",
+      "margin-top:" + (window.getComputedStyle(card).marginTop || "0px"),
+      "margin-bottom:" + (window.getComputedStyle(card).marginBottom || "0px"),
       "border-radius:inherit",
       "background:transparent",
       "pointer-events:none"
