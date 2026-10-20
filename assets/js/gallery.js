@@ -40,6 +40,14 @@
   const sidebarFavoriteCount = document.getElementById("gallerySidebarFavoriteCount");
   const showFavoriteButtonCheckbox = document.getElementById("galleryShowFavoriteButton");
   const favoriteDownloadAllButton = document.getElementById("galleryFavoritesDownloadAll");
+  const favoriteSelectAllButton = document.getElementById("galleryFavoritesSelectAll");
+  const favoriteMarkDownloadedButton = document.getElementById("galleryFavoritesMarkDownloaded");
+  const favoriteClearDownloadTagButton = document.getElementById("galleryFavoritesClearDownloadTag");
+  const downloadConfirmDialog = document.getElementById("galleryDownloadConfirm");
+  const downloadConfirmExcludeDownloaded = document.getElementById("galleryDownloadConfirmExcludeDownloaded");
+  const downloadConfirmSummary = document.getElementById("galleryDownloadConfirmSummary");
+  const downloadConfirmCancel = document.getElementById("galleryDownloadConfirmCancel");
+  const downloadConfirmStart = document.getElementById("galleryDownloadConfirmStart");
   const favoriteDownloadQueueButton = document.getElementById("galleryFavoritesDownloadQueue");
   const downloadManager = document.getElementById("galleryDownloadManager");
   const downloadManagerQueue = document.getElementById("galleryDownloadManagerQueue");
@@ -686,7 +694,8 @@
           url: item.url,
           title: typeof item.title === "string" ? item.title : "随机插画",
           source: typeof item.source === "string" ? item.source : "图片源",
-          addedAt: Number.isFinite(Number(item.addedAt)) ? Number(item.addedAt) : Date.now()
+          addedAt: Number.isFinite(Number(item.addedAt)) ? Number(item.addedAt) : Date.now(),
+          downloaded: item.downloaded === true
         });
       }
       return [...unique.values()];
@@ -793,6 +802,13 @@
         : `共 ${count} 张 · 保存在当前浏览器`;
     }
     if (favoriteDownloadAllButton) favoriteDownloadAllButton.disabled = count === 0 || downloadingFavorites;
+    const allSelected = count > 0 && selected === count;
+    if (favoriteSelectAllButton) {
+      favoriteSelectAllButton.disabled = !favoritesSelectionMode || count === 0 || downloadingFavorites;
+      favoriteSelectAllButton.textContent = allSelected ? "取消全选" : "全选";
+    }
+    if (favoriteMarkDownloadedButton) favoriteMarkDownloadedButton.disabled = !favoritesSelectionMode || selected === 0 || downloadingFavorites || favorites.every((item) => !selectedFavoriteUrls.has(item.url) || item.downloaded);
+    if (favoriteClearDownloadTagButton) favoriteClearDownloadTagButton.disabled = !favoritesSelectionMode || selected === 0 || downloadingFavorites || favorites.every((item) => !selectedFavoriteUrls.has(item.url) || !item.downloaded);
     if (favoriteDownloadQueueButton) favoriteDownloadQueueButton.hidden = !downloadManagerHasRun;
     if (favoriteMultiSelectButton) {
       favoriteMultiSelectButton.disabled = count === 0 || downloadingFavorites;
@@ -896,6 +912,11 @@
     preview.append(image);
     preview.addEventListener("click", () => openGalleryLightbox(item.url, item.title, preview, "favorites"));
 
+    const downloadedTag = document.createElement("span");
+    downloadedTag.className = "gallery-favorite-local-tag";
+    downloadedTag.textContent = "已下载";
+    downloadedTag.hidden = !item.downloaded;
+
     const details = document.createElement("div");
     details.className = "gallery-favorite-details";
     const title = document.createElement("strong");
@@ -911,7 +932,7 @@
     remove.textContent = "移除";
     remove.setAttribute("aria-label", "从收藏夹移除 " + (item.title || "图片"));
     remove.addEventListener("click", () => removeFavoriteUrls([item.url]));
-    card.append(selection, preview, details, remove);
+    card.append(selection, preview, downloadedTag, details, remove);
     return card;
   }
 
@@ -996,6 +1017,50 @@
   function refreshFavoritesView() {
     favoritesRenderDirty = true;
     renderFavorites();
+  }
+
+  function setFavoriteDownloaded(urls, downloaded, notify = true) {
+    const urlSet = new Set(urls);
+    let changed = 0;
+    favorites = favorites.map((item) => {
+      if (!urlSet.has(item.url) || item.downloaded === downloaded) return item;
+      changed++;
+      return { ...item, downloaded };
+    });
+    if (!changed) {
+      if (notify) showToast(downloaded ? "所选图片已标记" : "所选图片没有下载标记");
+      return;
+    }
+    const persisted = saveStoredFavorites();
+    refreshFavoritesView();
+    if (notify) showToast(persisted ? (downloaded ? `已标记 ${changed} 张` : `已清除 ${changed} 个标记`) : "已更新，但本地存储不可用，刷新后可能恢复");
+  }
+
+  function openDownloadConfirm() {
+    if (!downloadConfirmDialog || downloadingFavorites) return;
+    if (downloadConfirmExcludeDownloaded) downloadConfirmExcludeDownloaded.checked = true;
+    syncDownloadConfirmSummary();
+    downloadConfirmDialog.hidden = false;
+    document.body.classList.add("gallery-download-confirm-open");
+    downloadConfirmCancel?.focus();
+  }
+
+  function closeDownloadConfirm() {
+    if (!downloadConfirmDialog || downloadConfirmDialog.hidden) return;
+    downloadConfirmDialog.hidden = true;
+    document.body.classList.remove("gallery-download-confirm-open");
+    favoriteDownloadAllButton?.focus();
+  }
+
+  function syncDownloadConfirmSummary() {
+    if (!downloadConfirmSummary) return;
+    const exclude = Boolean(downloadConfirmExcludeDownloaded?.checked);
+    const count = favorites.filter((item) => !exclude || !item.downloaded).length;
+    const skipped = favorites.length - count;
+    downloadConfirmSummary.textContent = exclude
+      ? `将下载 ${count} 张${skipped ? `，跳过 ${skipped} 张已下载图片` : "，不重复下载已标记图片"}`
+      : `将下载全部 ${count} 张收藏图片`;
+    if (downloadConfirmStart) downloadConfirmStart.disabled = count === 0 || downloadingFavorites;
   }
 
   async function downloadFavoriteImage(url, index = 1) {
@@ -1150,6 +1215,7 @@
       tasks.push({
         index: taskNumber,
         urls: chunk,
+        successfulUrls: [],
         filename: `BzAxu-favorites-${String(taskNumber).padStart(2, "0")}.zip`,
         status: "等待中"
       });
@@ -1198,6 +1264,7 @@
             });
             const name = `image-${String(task.index * FAVORITE_ZIP_BATCH_SIZE - FAVORITE_ZIP_BATCH_SIZE + i + 1).padStart(4, "0")}.${extensionForBlob(blob)}`;
             zip.file(name, blob);
+            task.successfulUrls.push(file.url);
             completedImages++;
             taskSucceeded++;
             file.state.textContent = "已加入 ZIP";
@@ -1242,6 +1309,7 @@
           link.click();
           link.remove();
           window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+          setFavoriteDownloaded(task.successfulUrls, true, false);
           completedTasks++;
           setDownloadTaskStatus(task, taskFailed ? `已下载 · ${taskFailed} 张失败` : "已下载");
         } catch (error) {
@@ -1279,6 +1347,41 @@
   }
 
   if (favoriteDownloadQueueButton) favoriteDownloadQueueButton.addEventListener("click", openDownloadManager);
+  if (favoriteSelectAllButton) favoriteSelectAllButton.addEventListener("click", () => {
+    if (!favoritesSelectionMode) return;
+    const allSelected = favorites.length > 0 && selectedFavoriteUrls.size === favorites.length;
+    selectedFavoriteUrls = allSelected ? new Set() : new Set(favorites.map((item) => item.url));
+    refreshFavoritesView();
+  });
+  if (favoriteMarkDownloadedButton) favoriteMarkDownloadedButton.addEventListener("click", () => {
+    setFavoriteDownloaded([...selectedFavoriteUrls], true);
+  });
+  if (favoriteClearDownloadTagButton) favoriteClearDownloadTagButton.addEventListener("click", () => {
+    setFavoriteDownloaded([...selectedFavoriteUrls], false);
+  });
+  if (favoriteDownloadAllButton) favoriteDownloadAllButton.addEventListener("click", openDownloadConfirm);
+  if (downloadConfirmExcludeDownloaded) downloadConfirmExcludeDownloaded.addEventListener("change", syncDownloadConfirmSummary);
+  if (downloadConfirmCancel) downloadConfirmCancel.addEventListener("click", closeDownloadConfirm);
+  if (downloadConfirmDialog) {
+    downloadConfirmDialog.querySelectorAll("[data-download-confirm-close]").forEach((button) => button.addEventListener("click", closeDownloadConfirm));
+    if (downloadConfirmStart) downloadConfirmStart.addEventListener("click", () => {
+      const exclude = Boolean(downloadConfirmExcludeDownloaded?.checked);
+      const urls = favorites.filter((item) => !exclude || !item.downloaded).map((item) => item.url);
+      closeDownloadConfirm();
+      if (!urls.length) {
+        showToast("没有需要下载的图片");
+        return;
+      }
+      runFavoriteDownloads(urls);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (downloadConfirmDialog.hidden) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDownloadConfirm();
+      } else trapDialogTab(event, downloadConfirmDialog);
+    });
+  }
 
   if (downloadManagerCancel) {
     downloadManagerCancel.addEventListener("click", () => {
@@ -1338,7 +1441,7 @@
     refreshFavoritesView();
     showToast(persisted ? "已清除全部收藏" : "已暂时清除，但浏览器存储不可用，刷新后可能恢复");
   });
-  if (favoriteDownloadAllButton) favoriteDownloadAllButton.addEventListener("click", () => runFavoriteDownloads(favorites.map((item) => item.url)));
+  // The download-all action is confirmed in the dedicated dialog above.
   if (favoriteDownloadSelectedButton) favoriteDownloadSelectedButton.addEventListener("click", () => {
     const selected = favorites.filter((item) => selectedFavoriteUrls.has(item.url)).map((item) => item.url);
     runFavoriteDownloads(selected);
