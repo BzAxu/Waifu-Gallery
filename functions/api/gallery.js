@@ -155,7 +155,7 @@ export async function onRequestGet({ request }) {
   const tags = [...new Set(rawTags.split(/[\s,]+/).map((tag) => tag.trim()).filter(Boolean))];
   const rawBlockedTags = url.searchParams.getAll("blockedTags").join(",");
   const blockedTags = [...new Set(rawBlockedTags.split(/[\s,]+/).map((tag) => tag.trim()).filter(Boolean))];
-  const validTag = (tag) => /^[a-zA-Z0-9_-]{1,64}$/.test(tag);
+  const validTag = (tag) => /^[\p{L}\p{N}_-]{1,64}$/u.test(tag);
   if (tags.some((tag) => !validTag(tag)) || blockedTags.some((tag) => !validTag(tag))) {
     return json({ error: "标签格式无效：标签只能使用字母、数字、下划线或连字符。" }, 400);
   }
@@ -261,6 +261,45 @@ export async function onRequestGet({ request }) {
       return new Response(limitedBody, { status: 200, headers });
     } catch (error) {
       return json({ error: error && error.name === "AbortError" ? "下载图片超时" : "图片服务器暂时无法下载" }, 502);
+    }
+  }
+
+  if (mode === "tags") {
+    const query = (url.searchParams.get("q") || "").trim();
+    if (query.length < 2 || query.length > 64) return json({ error: "请输入 2–64 个字符的标签关键词。", tags: [] }, 400);
+    const tagUrl = new URL("https://safebooru.org/index.php");
+    tagUrl.searchParams.set("page", "dapi");
+    tagUrl.searchParams.set("s", "tag");
+    tagUrl.searchParams.set("q", "index");
+    tagUrl.searchParams.set("json", "1");
+    tagUrl.searchParams.set("limit", "100");
+    tagUrl.searchParams.set("name", query);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+      const response = await fetch(tagUrl.toString(), {
+        headers: { "Accept": "application/json", "User-Agent": "Waifu-Gallery/1.0 (public safe tag browser)" },
+        signal: controller.signal
+      });
+      if (!response.ok) return json({ error: "Safebooru 标签服务返回 HTTP " + response.status, tags: [] }, 502);
+      const payload = await response.json();
+      if (!Array.isArray(payload)) return json({ error: "Safebooru 返回了无法识别的标签数据。", tags: [] }, 502);
+      const needle = query.toLocaleLowerCase();
+      const tags = payload
+        .map((item) => ({
+          name: typeof item.name === "string" ? item.name : (typeof item.tag === "string" ? item.tag : ""),
+          count: Number(item.count ?? item.post_count ?? 0),
+          category: Number(item.type ?? item.category ?? 0)
+        }))
+        .filter((item) => item.name && /^[\p{L}\p{N}_-]{1,64}$/u.test(item.name) &&
+          item.name.toLocaleLowerCase().includes(needle))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 100);
+      return json({ source: "Safebooru", tags });
+    } catch (error) {
+      return json({ error: error && error.name === "AbortError" ? "Safebooru 标签查询超时。" : "无法连接 Safebooru 标签库。", tags: [] }, 502);
+    } finally {
+      clearTimeout(timer);
     }
   }
 
