@@ -196,12 +196,17 @@ async function requestProvider(provider, tags = [], blockedTags = []) {
 async function collectProviderImages(provider, count, tags = [], blockedTags = []) {
   const results = [];
   const maxRequests = Math.min(count, provider.batchSize ? 100 : 20);
-  // Request in small parallel groups to avoid overwhelming public APIs.
+  // When blocking tags, rejected images must be replaced with fresh requests.
+  // Bound retries to avoid an unending loop if the provider has no matching results.
+  const requestBudget = blockedTags.length ? Math.min(300, maxRequests * 3) : maxRequests;
   const perCall = provider.batchSize || 1;
-  const callsNeeded = Math.ceil(maxRequests / perCall);
-  for (let offset = 0; offset < callsNeeded && results.length < maxRequests; offset += 5) {
-    const groupSize = Math.min(5, callsNeeded - offset);
+  let requestsMade = 0;
+  while (results.length < maxRequests && requestsMade < requestBudget) {
+    const remainingBudget = Math.ceil((requestBudget - requestsMade) / perCall);
+    const neededCalls = Math.ceil((maxRequests - results.length) / perCall);
+    const groupSize = Math.min(5, remainingBudget, Math.max(1, neededCalls));
     const group = await Promise.all(Array.from({ length: groupSize }, () => requestProvider(provider, tags, blockedTags)));
+    requestsMade += groupSize * perCall;
     for (const result of group) {
       if (result.ok && Array.isArray(result.files)) results.push(...result.files);
     }
