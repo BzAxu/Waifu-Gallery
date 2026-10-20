@@ -162,16 +162,20 @@ async function requestProvider(provider, tags = [], blockedTags = []) {
     }
     const data = await response.json();
     let files;
-    if (blockedTags.length && provider.parseItems) {
+    let tagsByUrl = {};
+    if (provider.parseItems) {
       const items = provider.parseItems(data);
       const blocked = new Set(blockedTags.map(normalizeTag));
-      // Fail closed: when a provider doesn't return usable tag metadata, never
-      // return an image that might violate the user's blocked-tag preferences.
-      files = items.filter((item) => {
-        if (!item || typeof item.url !== "string" || !item.url.startsWith("https://") || !Array.isArray(item.tags)) return false;
+      const validItems = items.filter((item) => {
+        if (!item || typeof item.url !== "string" || !item.url.startsWith("https://")) return false;
+        if (Array.isArray(item.tags)) tagsByUrl[item.url] = item.tags;
+        if (!blockedTags.length) return true;
+        // Fail closed: unknown/missing tag metadata cannot be trusted for blocked-tag requests.
+        if (!Array.isArray(item.tags)) return false;
         const itemTags = new Set(item.tags.map(normalizeTag));
         return ![...blocked].some((tag) => itemTags.has(tag));
-      }).map((item) => item.url);
+      });
+      files = validItems.map((item) => item.url);
     } else {
       files = provider.parse(data).filter((url) => typeof url === "string" && url.startsWith("https://"));
       if (blockedTags.length) files = [];
@@ -179,7 +183,7 @@ async function requestProvider(provider, tags = [], blockedTags = []) {
     if (!files.length) {
       return { provider: provider.id, name: provider.name, ok: false, latency: elapsed, error: blockedTags.length ? "没有找到带有可验证标签且符合屏蔽条件的图片" : "返回数据中没有可用图片" };
     }
-    return { provider: provider.id, name: provider.name, ok: true, latency: elapsed, files };
+    return { provider: provider.id, name: provider.name, ok: true, latency: elapsed, files, tagsByUrl };
   } catch (error) {
     return {
       provider: provider.id,
@@ -195,6 +199,7 @@ async function requestProvider(provider, tags = [], blockedTags = []) {
 
 async function collectProviderImages(provider, count, tags = [], blockedTags = []) {
   const results = [];
+  const tagsByUrl = {};
   const maxRequests = Math.min(count, provider.batchSize ? 100 : 20);
   // When blocking tags, rejected images must be replaced with fresh requests.
   // Bound retries to avoid an unending loop if the provider has no matching results.
@@ -208,11 +213,15 @@ async function collectProviderImages(provider, count, tags = [], blockedTags = [
     const group = await Promise.all(Array.from({ length: groupSize }, () => requestProvider(provider, tags, blockedTags)));
     requestsMade += groupSize * perCall;
     for (const result of group) {
-      if (result.ok && Array.isArray(result.files)) results.push(...result.files);
+      if (result.ok && Array.isArray(result.files)) {
+        results.push(...result.files);
+        if (result.tagsByUrl) Object.assign(tagsByUrl, result.tagsByUrl);
+      }
     }
   }
-  const unique = [...new Set(results)];
-  return unique.slice(0, maxRequests);
+  const unique = [...new Set(results)].slice(0, maxRequests);
+  unique.tagsByUrl = Object.fromEntries(unique.filter((url) => tagsByUrl[url]).map((url) => [url, tagsByUrl[url]]));
+  return unique;
 }
 
 export async function onRequestGet({ request }) {
@@ -368,6 +377,7 @@ export async function onRequestGet({ request }) {
     if (files.length) {
       return json({
         files,
+        tagsByUrl: files.tagsByUrl || {},
         source: provider.id,
         sourceName: provider.name,
         latency: Date.now() - started,
