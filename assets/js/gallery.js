@@ -1125,17 +1125,26 @@
     refreshAutoLoadAfterImages();
   }
 
+  // Queue image requests until their cards approach the viewport. Cards reserve a
+  // lightweight 3:4 placeholder so the masonry lanes remain scrollable meanwhile.
+  const galleryImageLoadObserver = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const record = entry.target.__galleryImageRecord;
+          if (record && typeof record.start === "function") record.start();
+          galleryImageLoadObserver.unobserve(entry.target);
+        }
+      }, { root: null, rootMargin: "420px 0px", threshold: 0.01 })
+    : null;
+
   function addImage(url, sourceName = "图片源", batch = null) {
     if (!url || seen.has(url)) return false;
     seen.add(url);
     const generation = galleryGeneration;
 
-    // Build the card now, but do not attach it to the gallery until the image
-    // has loaded and decoded successfully.
     const card = document.createElement("div");
-    card.className = "gallery-item";
-    const revealIndex = batch ? batch.added : 0;
-    card.style.setProperty("--gallery-reveal-delay", Math.min(revealIndex, 8) * 16 + "ms");
+    card.className = "gallery-item gallery-item--pending";
     const previewButton = document.createElement("button");
     previewButton.type = "button";
     previewButton.className = "gallery-item-preview";
@@ -1143,7 +1152,7 @@
     previewButton.dataset.sourceUrl = url;
     previewButton.dataset.title = "随机插画";
     const img = document.createElement("img");
-    img.loading = "eager";
+    img.loading = "lazy";
     img.decoding = "async";
     img.alt = "插画";
     img.className = "is-loading";
@@ -1160,25 +1169,15 @@
     heartFeedback.setAttribute("aria-hidden", "true");
     heartFeedback.innerHTML = '<svg viewBox="0 0 24 24" focusable="false"><path d="M20.8 4.6a5.2 5.2 0 0 0-7.4 0L12 6l-1.4-1.4a5.2 5.2 0 0 0-7.4 7.4l1.4 1.4L12 20.8l7.4-7.4 1.4-1.4a5.2 5.2 0 0 0 0-7.4Z"/></svg>';
     card.append(previewButton, favoriteButton, heartFeedback);
-
     card.dataset.sourceUrl = url;
     card.dataset.title = "随机插画";
 
     const record = {
-      generation,
-      batch,
-      url,
-      card,
-      img,
-      settled: false,
-      timer: 0,
-      cancel: null
+      generation, batch, url, card, img,
+      settled: false, started: false, timer: 0, cancel: null, start: null
     };
     pendingImages.add(record);
-    if (batch) {
-      batch.added++;
-      batch.pending++;
-    }
+    if (batch) { batch.added++; batch.pending++; }
 
     const clearLoadTimer = () => {
       if (record.timer) window.clearTimeout(record.timer);
@@ -1190,6 +1189,7 @@
       record.settled = true;
       clearLoadTimer();
       pendingImages.delete(record);
+      galleryImageLoadObserver?.unobserve(card);
       card.remove();
       if (generation === galleryGeneration) seen.delete(url);
       settleImageBatch(batch, false);
@@ -1197,10 +1197,7 @@
 
     const onLoad = async () => {
       if (record.settled) return;
-      if (generation !== galleryGeneration) {
-        failImage();
-        return;
-      }
+      if (generation !== galleryGeneration) { failImage(); return; }
       try {
         if (typeof img.decode === "function") await img.decode();
       } catch (_) {
@@ -1211,7 +1208,6 @@
         failImage();
         return;
       }
-
       record.settled = true;
       clearLoadTimer();
       pendingImages.delete(record);
@@ -1219,27 +1215,42 @@
       img.style.height = "auto";
       img.dataset.naturalRatio = img.naturalWidth + ":" + img.naturalHeight;
       img.classList.remove("is-loading");
+      card.classList.remove("gallery-item--pending");
       card.classList.add("gallery-item--loaded");
-
-      // Insert the successful image among real cards, immediately above the
-      // decorative placeholders that are temporarily pinned to the bottom.
-      insertLoadedCardBeforePlaceholders(card);
       empty.hidden = true;
       settleImageBatch(batch, true);
     };
 
+    record.start = () => {
+      if (record.started || record.settled || generation !== galleryGeneration) return;
+      record.started = true;
+      img.addEventListener("load", onLoad, { once: true });
+      img.addEventListener("error", failImage, { once: true });
+      img.src = url;
+    };
     record.cancel = () => {
       if (record.settled) return;
       record.settled = true;
       clearLoadTimer();
+      galleryImageLoadObserver?.unobserve(card);
+      galleryCardObserver?.unobserve(card);
       img.removeEventListener("load", onLoad);
       img.removeEventListener("error", failImage);
       img.removeAttribute("src");
     };
-    img.addEventListener("load", onLoad, { once: true });
-    img.addEventListener("error", failImage, { once: true });
-    // Do not discard slow images on a fixed timer; only a real error or refresh cancels them.
-    img.src = url;
+
+    // Place the placeholder in its masonry lane immediately, without forcing a
+    // full-grid measurement/reflow animation for every incoming URL.
+    const lane = getShortestContentLane();
+    if (lane) {
+      const firstPlaceholder = lane.querySelector(":scope > .gallery-skeleton-placeholder");
+      if (firstPlaceholder) lane.insertBefore(card, firstPlaceholder);
+      else lane.append(card);
+    }
+    observeGalleryCard(card);
+    card.__galleryImageRecord = record;
+    if (galleryImageLoadObserver) galleryImageLoadObserver.observe(card);
+    else record.start();
 
     previewButton.addEventListener("click", () => openGalleryLightbox(url, card.dataset.title, previewButton, "gallery"));
     previewButton.addEventListener("contextmenu", (event) => {
