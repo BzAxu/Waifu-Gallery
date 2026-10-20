@@ -2228,3 +2228,35 @@ body.gallery-download-manager-open{overflow:hidden}
  .gallery-download-manager.is-opening .gallery-download-manager-backdrop,.gallery-download-manager.is-opening .gallery-download-manager-card,.gallery-download-manager.is-closing .gallery-download-manager-backdrop,.gallery-download-manager.is-closing .gallery-download-manager-card{animation:none!important}
  .gallery-download-manager-progress-track span{transition:none!important}
 }
+
+
+/* Local favorites waterfall layout: preserve each image's natural height. */
+.gallery-favorites-grid{
+  display:block!important;
+  column-count:4;
+  column-gap:15px;
+}
+.gallery-favorites-grid > .gallery-favorite-card{
+  display:inline-block;
+  width:100%;
+  margin:0 0 15px;
+  break-inside:avoid;
+  -webkit-column-break-inside:avoid;
+  vertical-align:top;
+}
+.gallery-favorite-preview img{
+  max-height:none;
+}
+@media(max-width:900px){
+  .gallery-favorites-grid{column-count:3;column-gap:12px}
+  .gallery-favorites-grid > .gallery-favorite-card{margin-bottom:12px}
+}
+@media(max-width:700px){
+  .gallery-favorites-grid{column-count:2;column-gap:10px}
+  .gallery-favorites-grid > .gallery-favorite-card{margin-bottom:10px}
+  .gallery-favorite-preview img{max-height:none}
+}
+@media(max-width:390px){
+  .gallery-favorites-grid{column-gap:8px}
+  .gallery-favorites-grid > .gallery-favorite-card{margin-bottom:8px}
+}
