@@ -2126,7 +2126,7 @@
       ["classroom_of_the_elite","欢迎来到实力至上主义教室"],
       ["date_a_live","约会大作战"],
       ["toaru_majutsu_no_index","魔法禁书目录"],
-      ["toaru_kagaku_no_ railgun","某科学的超电磁炮"],
+      ["toaru_kagaku_no_railgun","某科学的超电磁炮"],
       ["violet_evergarden","紫罗兰永恒花园"],
       ["your_name","你的名字"],
       ["weathering_with_you","天气之子"],
@@ -2149,7 +2149,6 @@
       ["kemono_friends","兽娘动物园"],
       ["uma_musume","赛马娘"],
       ["umamusume","赛马娘（Uma Musume）"],
-      ["kemono_friends","兽娘动物园"],
       ["the_idolmster_shiny_colors","偶像大师 闪耀色彩"],
       ["blue_reflection","蓝色反射"],
       ["atelier_series","炼金工房系列"],
@@ -2162,8 +2161,7 @@
       ["fairy_tail","妖精的尾巴"],
       ["black_clover","黑色五叶草"],
       ["fullmetal_alchemist","钢之炼金术师"],
-      ["soul_eater","噬魂师"],
-      ["sailor_moon","美少女战士（经典系列）"]
+      ["soul_eater","噬魂师"]
     ]
   };
   const selectedTagsStorageKey = "waifu-gallery-selected-tags-v1";
