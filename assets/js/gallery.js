@@ -2259,10 +2259,12 @@
     updateTagDialogHint();
   }
   refreshButton.addEventListener("click", () => {
+    syncSelectedTagsFromInput(); saveTagPreferences();
     lastRequestUsedFallback = false;
     loadImages({ reset: true, targetCount: 100 });
   });
   if (sourceSelect) sourceSelect.addEventListener("change", () => {
+    syncSelectedTagsFromInput(); saveTagPreferences();
     updateTagFilterAvailability();
     loadImages({ reset: true, targetCount: 100 });
   });
