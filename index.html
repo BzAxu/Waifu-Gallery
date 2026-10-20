@@ -112,6 +112,11 @@
       <button type="button" data-tag-category="eyes" role="tab" aria-selected="false">眼睛</button>
       <button type="button" data-tag-category="special" role="tab" aria-selected="false">特殊标签</button>
     </div>
+    <div class="gallery-tag-search">
+      <label for="galleryTagSearch">搜索完整标签库</label>
+      <input id="galleryTagSearch" type="search" autocomplete="off" spellcheck="false" placeholder="搜索作品名、角色名或日文标签，如 blue_archive">
+      <p id="galleryTagSearchStatus" role="status" aria-live="polite">输入至少 2 个字符，实时查询 Safebooru 标签库。</p>
+    </div>
     <div class="gallery-tag-options" id="galleryTagOptions" role="group" aria-label="可选标签"></div>
     <p class="gallery-tag-hint gallery-tag-dialog-hint" id="galleryTagDialogHint">自动模式会在支持标签的图片源中搜索。</p>
     <div class="gallery-tag-footer"><button class="button gallery-tag-cancel" type="button" data-gallery-tag-close>取消</button><button class="button gallery-tag-confirm" id="galleryTagConfirm" type="button">应用筛选</button></div>
