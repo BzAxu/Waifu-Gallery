@@ -2172,3 +2172,12 @@ body.gallery-sidebar-open{ overflow:hidden; }
 body.gallery-favorites-open{overflow:hidden}
 @media(max-width:700px){.gallery-favorites-dialog{padding:8px}.gallery-favorites-modal-card{width:100%;max-height:92dvh;padding:14px 12px 18px;border-radius:20px}.gallery-favorites-heading{padding-top:2px}.gallery-favorites-modal-close{margin:-2px -2px 0 8px}}
 @media(prefers-reduced-motion:reduce){.gallery-favorites-dialog.is-opening .gallery-favorites-backdrop,.gallery-favorites-dialog.is-opening .gallery-favorites-modal-card,.gallery-favorites-dialog.is-closing .gallery-favorites-backdrop,.gallery-favorites-dialog.is-closing .gallery-favorites-modal-card{animation:none!important}.gallery-favorites-modal-close{transition:none!important}}
+
+
+/* Keep large local collections responsive by limiting the active favorites DOM to one page. */
+.gallery-favorites-pagination{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;margin:18px 0 4px;padding:12px;border:1px solid rgba(220,228,255,.12);border-radius:16px;background:rgba(255,255,255,.025)}
+.gallery-favorites-pagination[hidden]{display:none!important}
+.gallery-favorites-pagination span{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;text-align:center}
+.gallery-favorites-pagination .button{min-width:112px;padding:8px 12px;font-size:12px}
+.gallery-favorites-pagination .button:disabled{opacity:.38;cursor:not-allowed;transform:none;filter:none}
+@media(max-width:480px){.gallery-favorites-pagination{gap:8px;padding:10px}.gallery-favorites-pagination .button{min-width:0;flex:1 1 100px;padding:8px 9px}.gallery-favorites-pagination span{order:-1;flex:1 0 100%;}}
