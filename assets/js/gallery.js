@@ -24,6 +24,10 @@
   const tagClearButton = document.getElementById("galleryTagClear");
   const tagConfirmButton = document.getElementById("galleryTagConfirm");
   const tagDialogHint = document.getElementById("galleryTagDialogHint");
+  const tagModeIncludeButton = document.getElementById("galleryTagModeInclude");
+  const tagModeBlockButton = document.getElementById("galleryTagModeBlock");
+  const tagSelectedTitle = document.getElementById("galleryTagSelectedTitle");
+  const tagDialogDescription = document.getElementById("galleryTagDescription");
   const columnsSelect = document.getElementById("galleryColumnsSelect");
   const providerStatusList = document.getElementById("galleryProviderStatusList");
   const providerStatusRefresh = document.getElementById("galleryProviderStatusRefresh");
@@ -1835,6 +1839,7 @@
         const params = new URLSearchParams({ source, count: String(requestedCount) });
         const requestedTags = tagInput && tagFilteringAvailable() ? tagInput.value.trim() : "";
         if (requestedTags) params.set("tags", requestedTags);
+        if (blockedTags.length && (source === "auto" || source === "safebooru")) params.set("blockedTags", blockedTags.join(","));
         const response = await fetch(galleryApiUrl("?" + params.toString()), {
           method: "GET",
           headers: { "Accept": "application/json" },
@@ -2029,33 +2034,64 @@
       ["original","原创角色"],["fanart","同人作品"],["multiple_girls","多名角色"],["1girl","单人角色"],["2girls","两名角色"],["solo","单人画面"],["chibi","Q版"],["anime_coloring","动画风上色"],["monochrome","黑白画面"],["sketch","草稿风"],["lineart","线稿"],["traditional_media","传统绘画"],["digital_art","数字绘画"],["pixel_art","像素风"],["watercolor","水彩风"],["oil_painting","油画风"],["3d","3D风格"],["realistic","写实风"],["abstract","抽象风"],["minimalism","极简风"],["cute","可爱风"],["kawaii","萌系"],["beautiful","唯美"],["detailed","细节丰富"],["highres","高清"],["absurdres","超高分辨率"],["official_art","官方绘图"],["cover","封面图"],["wallpaper","壁纸"],["transparent_background","透明背景"],["simple_background","简洁背景"],["white_background","白色背景"],["black_background","黑色背景"],["weapon","武器"],["book","书本"],["food","食物"],["music","音乐元素"],["animal","动物"],["bird","鸟类"],["butterfly","蝴蝶"],["flower","单朵花"],["heart","爱心"],["stars","星星装饰"],["jewelry","首饰"],["umbrella","雨伞"],["phone","手机"],["camera","相机"],["sword","剑"],["staff","法杖"],["ribbon","丝带"]
     ]
   };
+  const selectedTagsStorageKey = "waifu-gallery-selected-tags-v1";
+  const blockedTagsStorageKey = "waifu-gallery-blocked-tags-v1";
+  function readStoredTagList(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "[]");
+      if (!Array.isArray(value)) return [];
+      return [...new Set(value.filter((tag) => typeof tag === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(tag)))];
+    } catch (_) { return []; }
+  }
+  function saveTagPreferences() {
+    try {
+      localStorage.setItem(selectedTagsStorageKey, JSON.stringify(selectedTags));
+      localStorage.setItem(blockedTagsStorageKey, JSON.stringify(blockedTags));
+      return true;
+    } catch (_) { return false; }
+  }
   let activeTagCategory = "hair";
-  let selectedTags = [];
+  let selectedTags = readStoredTagList(selectedTagsStorageKey);
+  let blockedTags = readStoredTagList(blockedTagsStorageKey);
+  let tagSelectionMode = "include";
+  if (tagInput && selectedTags.length) tagInput.value = selectedTags.join(",");
   let tagDialogTrigger = null;
   let tagOptionsAnimationTimer = 0;
   function syncSelectedTagsFromInput() {
-    selectedTags = (tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter(Boolean);
+    selectedTags = [...new Set((tagInput && tagInput.value ? tagInput.value.split(/[\s,]+/) : []).map((tag) => tag.trim()).filter((tag) => /^[a-zA-Z0-9_-]{1,64}$/.test(tag)))];
+  }
+  function activeTagList() { return tagSelectionMode === "block" ? blockedTags : selectedTags; }
+  function blockingTagsAvailable() { return !sourceSelect || ["auto", "safebooru"].includes(sourceSelect.value); }
+  function syncTagModeButtons() {
+    if (tagModeIncludeButton) { tagModeIncludeButton.classList.toggle("is-active", tagSelectionMode === "include"); tagModeIncludeButton.setAttribute("aria-pressed", String(tagSelectionMode === "include")); }
+    if (tagModeBlockButton) { tagModeBlockButton.classList.toggle("is-active", tagSelectionMode === "block"); tagModeBlockButton.setAttribute("aria-pressed", String(tagSelectionMode === "block")); }
+    if (tagSelectedTitle) tagSelectedTitle.textContent = tagSelectionMode === "block" ? "屏蔽标签" : "已选标签";
+    if (tagDialogDescription) tagDialogDescription.textContent = tagSelectionMode === "block"
+      ? "选择不想看到的标签，匹配的图片会被排除。设置会保存在本地。"
+      : "选择想看的标签，可多选。筛选和屏蔽设置会在刷新后保留。";
+    if (tagClearButton) tagClearButton.textContent = tagSelectionMode === "block" ? "清空屏蔽" : "清空";
   }
   function tagLabel(tag) { return (Object.values(TAG_CATEGORIES).flat().find((item) => item[0] === tag) || [tag, tag])[1]; }
   // Reconcile selected chips in place. Replacing every child on each click
   // restarted CSS animations on all chips and caused the selected area to flash.
   function renderSelectedTags() {
     if (!tagSelected) return;
-    const active = new Set(selectedTags);
+    const activeTags = activeTagList();
+    const active = new Set(activeTags);
     tagSelected.querySelectorAll(".gallery-tag-selected-chip").forEach((chip) => {
       if (!active.has(chip.dataset.tag)) chip.remove();
     });
     let emptyTag = tagSelected.querySelector(".gallery-tag-none");
-    if (!selectedTags.length) {
+    if (!activeTags.length) {
       if (!emptyTag) {
         emptyTag = document.createElement("span");
         emptyTag.className = "gallery-tag-none";
-        emptyTag.textContent = "还没有选择标签";
+        emptyTag.textContent = tagSelectionMode === "block" ? "还没有屏蔽标签" : "还没有选择标签";
         tagSelected.append(emptyTag);
       }
     } else {
       emptyTag?.remove();
-      selectedTags.forEach((tag) => {
+      activeTags.forEach((tag) => {
         if (tagSelected.querySelector('[data-tag="' + CSS.escape(tag) + '"].gallery-tag-selected-chip')) return;
         const chip = document.createElement("span");
         chip.className = "gallery-tag-selected-chip";
@@ -2067,7 +2103,8 @@
         remove.textContent = "×";
         remove.setAttribute("aria-label", "移除 " + name.textContent);
         remove.addEventListener("click", () => {
-          selectedTags = selectedTags.filter((item) => item !== tag);
+          if (tagSelectionMode === "block") blockedTags = blockedTags.filter((item) => item !== tag);
+          else selectedTags = selectedTags.filter((item) => item !== tag);
           syncTagOptionStates();
           renderSelectedTags();
           updateTagDialogHint();
@@ -2076,14 +2113,15 @@
         tagSelected.append(chip);
       });
     }
-    if (tagConfirmButton) tagConfirmButton.textContent = selectedTags.length ? "应用筛选（" + selectedTags.length + "）" : "清除筛选";
-    tagSelected.dataset.count = String(selectedTags.length);
+    syncTagModeButtons();
+    if (tagConfirmButton) tagConfirmButton.textContent = "应用设置";
+    tagSelected.dataset.count = String(activeTags.length);
   }
 
   function syncTagOptionStates() {
     if (!tagOptions) return;
     tagOptions.querySelectorAll(".gallery-tag-option").forEach((button) => {
-      const selected = selectedTags.includes(button.dataset.tag);
+      const selected = activeTagList().includes(button.dataset.tag);
       button.classList.toggle("is-selected", selected);
       button.setAttribute("aria-pressed", String(selected));
       const mark = button.querySelector(".gallery-tag-option-mark");
@@ -2105,18 +2143,28 @@
     (TAG_CATEGORIES[activeTagCategory] || []).forEach(([tag, label]) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "gallery-tag-option" + (selectedTags.includes(tag) ? " is-selected" : "");
+      const selected = activeTagList().includes(tag);
+      button.className = "gallery-tag-option" + (selected ? " is-selected" : "");
       button.dataset.tag = tag;
-      button.setAttribute("aria-pressed", String(selectedTags.includes(tag)));
+      button.setAttribute("aria-pressed", String(selected));
       const mark = document.createElement("span");
       mark.className = "gallery-tag-option-mark";
-      mark.textContent = selectedTags.includes(tag) ? "✓" : "+";
+      mark.textContent = selected ? "✓" : "+";
       const text = document.createElement("span");
       text.textContent = label;
       button.append(mark, text);
       button.addEventListener("click", () => {
-        if (selectedTags.includes(tag)) selectedTags = selectedTags.filter((item) => item !== tag);
-        else selectedTags.push(tag);
+        const list = activeTagList();
+        if (list.includes(tag)) {
+          if (tagSelectionMode === "block") blockedTags = blockedTags.filter((item) => item !== tag);
+          else selectedTags = selectedTags.filter((item) => item !== tag);
+        } else if (tagSelectionMode === "block") {
+          blockedTags.push(tag);
+          selectedTags = selectedTags.filter((item) => item !== tag);
+        } else {
+          selectedTags.push(tag);
+          blockedTags = blockedTags.filter((item) => item !== tag);
+        }
         syncTagOptionStates();
         renderSelectedTags();
         updateTagDialogHint();
@@ -2136,15 +2184,22 @@
   function updateTagDialogHint() {
     if (!tagDialogHint) return;
     tagDialogHint.textContent = !tagFilteringAvailable()
-      ? "当前图片源不支持标签筛选，请在画廊设置中切换到自动模式、Nekos API 或 Safebooru。"
-      : sourceSelect && sourceSelect.value === "safebooru" ? "Safebooru 将使用安全评级（safe）进行筛选。"
-      : sourceSelect && sourceSelect.value === "nekosapi" ? "Nekos API 将使用安全评级（safe）进行筛选。"
-      : "自动模式只会查询支持标签的图片源。标签越多，筛选条件越严格。";
+      ? "当前图片源不支持标签筛选，请切换到自动模式、Nekos API 或 Safebooru。"
+      : tagSelectionMode === "block" && !blockingTagsAvailable()
+        ? "当前图片源不支持屏蔽标签；切换到自动模式或 Safebooru 后生效。"
+        : sourceSelect && sourceSelect.value === "safebooru"
+          ? (tagSelectionMode === "block" ? "屏蔽标签会从 Safebooru 结果中排除。" : "Safebooru 将使用安全评级（safe）进行筛选。")
+          : sourceSelect && sourceSelect.value === "nekosapi"
+            ? "Nekos API 支持筛选标签；屏蔽标签需切换到自动模式或 Safebooru。"
+            : (tagSelectionMode === "block" ? "自动模式会优先使用支持排除标签的 Safebooru。" : "自动模式只会查询支持标签的图片源。标签越多，筛选条件越严格。");
   }
   function openTagDialog() {
     if (!tagDialog) return;
     tagDialogTrigger = document.activeElement;
-    syncSelectedTagsFromInput(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
+    syncSelectedTagsFromInput();
+    tagSelectionMode = "include";
+    syncTagModeButtons();
+    renderTagOptions(); renderSelectedTags(); updateTagDialogHint();
     openAnimatedDialog(tagDialog, "gallery-tags-open");
     const closeButton = tagDialog.querySelector(".gallery-tag-close"); if (closeButton) closeButton.focus();
   }
@@ -2169,20 +2224,28 @@
       }
     });
   }
+  if (tagModeIncludeButton) tagModeIncludeButton.addEventListener("click", () => { tagSelectionMode = "include"; syncTagModeButtons(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint(); });
+  if (tagModeBlockButton) tagModeBlockButton.addEventListener("click", () => { tagSelectionMode = "block"; syncTagModeButtons(); renderTagOptions(); renderSelectedTags(); updateTagDialogHint(); });
   if (tagCategoryTabs) tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((button) => button.addEventListener("click", () => {
     activeTagCategory = button.dataset.tagCategory;
     tagCategoryTabs.querySelectorAll("[data-tag-category]").forEach((tab) => { const active = tab === button; tab.classList.toggle("is-active", active); tab.setAttribute("aria-selected", String(active)); });
     renderTagOptions({ animate: true });
   }));
   if (tagClearButton) tagClearButton.addEventListener("click", () => {
-    selectedTags = [];
+    if (tagSelectionMode === "block") blockedTags = [];
+    else selectedTags = [];
     syncTagOptionStates();
     renderSelectedTags();
     updateTagDialogHint();
   });
   if (tagConfirmButton) tagConfirmButton.addEventListener("click", () => {
     if (tagInput) tagInput.value = selectedTags.join(",");
-    if (tagHint) tagHint.textContent = selectedTags.length ? "当前标签：" + selectedTags.map(tagLabel).join("、") : "尚未选择标签。可按类别打开标签选择器。";
+    const persisted = saveTagPreferences();
+    if (tagHint) {
+      const includeText = selectedTags.length ? "筛选：" + selectedTags.map(tagLabel).join("、") : "未设置筛选标签";
+      const blockText = blockedTags.length ? "屏蔽：" + blockedTags.map(tagLabel).join("、") : "未设置屏蔽标签";
+      tagHint.textContent = includeText + " · " + blockText + (persisted ? " · 已保存" : " · 保存失败");
+    }
     closeTagDialog(); loadImages({ reset: true, targetCount: 100 });
   });
 
@@ -2196,22 +2259,25 @@
     if (tagSettingsOpen) tagSettingsOpen.disabled = loading || !available;
     if (tagDialogOpen) tagDialogOpen.disabled = loading || !available;
     if (tagHint && !available) tagHint.textContent = "当前图片源不支持标签筛选。切换到自动模式、Nekos API 或 Safebooru 即可使用。";
-    else if (tagHint && !tagInput.value) tagHint.textContent = "尚未选择标签。可按发色、角色特征、服装和场景分类筛选。";
+    else if (tagHint && blockedTags.length && !blockingTagsAvailable()) tagHint.textContent = "已保存屏蔽标签；切换到自动模式或 Safebooru 后生效。";
+    else if (tagHint && !tagInput.value && !blockedTags.length) tagHint.textContent = "尚未选择标签。可按类别筛选或屏蔽标签。";
     updateTagDialogHint();
   }
   refreshButton.addEventListener("click", () => {
+    syncSelectedTagsFromInput(); saveTagPreferences();
     lastRequestUsedFallback = false;
     loadImages({ reset: true, targetCount: 100 });
   });
   if (sourceSelect) sourceSelect.addEventListener("change", () => {
+    syncSelectedTagsFromInput(); saveTagPreferences();
     updateTagFilterAvailability();
     loadImages({ reset: true, targetCount: 100 });
   });
-  if (tagApplyButton) tagApplyButton.addEventListener("click", () => loadImages({ reset: true, targetCount: 100 }));
+  if (tagApplyButton) tagApplyButton.addEventListener("click", () => { syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 100 }); });
   if (tagInput) tagInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !tagInput.disabled) {
       event.preventDefault();
-      loadImages({ reset: true, targetCount: 100 });
+      syncSelectedTagsFromInput(); saveTagPreferences(); loadImages({ reset: true, targetCount: 100 });
     }
   });
   updateTagFilterAvailability();
