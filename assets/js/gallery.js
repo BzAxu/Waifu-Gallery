@@ -40,6 +40,7 @@
   const sidebarFavoriteCount = document.getElementById("gallerySidebarFavoriteCount");
   const showFavoriteButtonCheckbox = document.getElementById("galleryShowFavoriteButton");
   const favoriteDownloadAllButton = document.getElementById("galleryFavoritesDownloadAll");
+  const favoriteDownloadQueueButton = document.getElementById("galleryFavoritesDownloadQueue");
   const downloadManager = document.getElementById("galleryDownloadManager");
   const downloadManagerQueue = document.getElementById("galleryDownloadManagerQueue");
   const downloadManagerFiles = document.getElementById("galleryDownloadManagerFiles");
@@ -390,7 +391,7 @@
       return;
     }
     if (dialog.classList.contains("is-closing")) return;
-    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card, .gallery-favorites-modal-card");
+    const panel = dialog.querySelector(".gallery-tag-card, .gallery-settings-card, .gallery-lightbox-card, .gallery-favorites-modal-card, .gallery-download-manager-card");
     const finishImmediately = () => {
       dialog.hidden = true;
       dialog.classList.remove("is-opening", "is-closing");
@@ -789,6 +790,7 @@
         : `共 ${count} 张 · 保存在当前浏览器`;
     }
     if (favoriteDownloadAllButton) favoriteDownloadAllButton.disabled = count === 0 || downloadingFavorites;
+    if (favoriteDownloadQueueButton) favoriteDownloadQueueButton.hidden = !downloadManagerHasRun;
     if (favoriteMultiSelectButton) {
       favoriteMultiSelectButton.disabled = count === 0 || downloadingFavorites;
       favoriteMultiSelectButton.textContent = favoritesSelectionMode ? "取消多选" : "多选";
@@ -1012,6 +1014,7 @@
   const FAVORITE_ZIP_BATCH_SIZE = 100;
   let favoriteDownloadController = null;
   let favoriteDownloadCancelled = false;
+  let downloadManagerHasRun = false;
   let jsZipPromise = null;
 
   function loadJSZip() {
@@ -1150,6 +1153,8 @@
 
     downloadingFavorites = true;
     favoriteDownloadCancelled = false;
+    downloadManagerHasRun = true;
+    if (downloadManagerCancel) downloadManagerCancel.textContent = "取消下载";
     favoriteDownloadController = new AbortController();
     syncFavoriteToolbar();
     openDownloadManager();
@@ -1168,6 +1173,7 @@
         const zip = new JSZip();
         const fileRows = renderDownloadFiles(task.urls);
         let taskFailed = 0;
+        let taskSucceeded = 0;
         for (let i = 0; i < task.urls.length; i++) {
           if (favoriteDownloadCancelled) break;
           const file = fileRows[i];
@@ -1187,6 +1193,7 @@
             const name = `image-${String(task.index * FAVORITE_ZIP_BATCH_SIZE - FAVORITE_ZIP_BATCH_SIZE + i + 1).padStart(4, "0")}.${extensionForBlob(blob)}`;
             zip.file(name, blob);
             completedImages++;
+            taskSucceeded++;
             file.state.textContent = "已加入 ZIP";
           } catch (error) {
             if (error.name === "AbortError" || favoriteDownloadCancelled) {
@@ -1233,7 +1240,7 @@
         } catch (error) {
           console.error("ZIP generation failed:", error);
           setDownloadTaskStatus(task, "失败 · ZIP 生成失败");
-          failedImages += Math.max(0, task.urls.length - completedImages);
+          failedImages += taskSucceeded;
         }
       }
     } catch (error) {
@@ -1245,6 +1252,9 @@
       favoriteDownloadController = null;
       syncFavoriteToolbar();
       if (downloadManagerCancel) downloadManagerCancel.disabled = true;
+      for (const task of tasks) {
+        if (favoriteDownloadCancelled && task.status === "等待中") setDownloadTaskStatus(task, "已取消");
+      }
       const summary = favoriteDownloadCancelled
         ? `已取消：已生成 ${completedTasks} 个 ZIP，失败 ${failedImages} 张`
         : `任务结束：生成 ${completedTasks} 个 ZIP，下载失败 ${failedImages} 张`;
@@ -1254,6 +1264,8 @@
       showToast(summary);
     }
   }
+
+  if (favoriteDownloadQueueButton) favoriteDownloadQueueButton.addEventListener("click", openDownloadManager);
 
   if (downloadManagerCancel) {
     downloadManagerCancel.addEventListener("click", () => {
